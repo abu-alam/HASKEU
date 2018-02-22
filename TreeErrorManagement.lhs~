@@ -1,0 +1,230 @@
+> module TreeErrorManagement where
+> -- This module should merge with SyntaxTreeManagement module??
+
+> import ModelType
+
+> import Language.Haskell.Exts.Annotated 
+
+> import Data.Char
+> import Graphics.UI.WX
+> import Data.List
+
+> strAreaFnCl = " GLOBALS : "
+> strAreaLclFnCl = " LOCALS : "
+> strAreaFnPat = " PATTERNS : "
+> strAreaLclFnPat = " LOCAL PATTERNS : "
+> strAreaFnBody = " BODY : "
+
+> getSyntaxErrFromTree :: SystemState -> [ErrorMsg]
+> getSyntaxErrFromTree m@(SystemState f t g ty h) =
+>	let 	mod = shapeTree g
+>	in	getSyntaxErrors "" 0 0 mod
+
+> getGraTypeErrFromTree :: SystemState -> [ErrorMsg]
+> getGraTypeErrFromTree m@(SystemState f t g ty h) =
+>	let 	mod = shapeTree g
+>	in	snd $ getTypeErrors "" 0 0 mod
+
+> getTextualTypeErrFromTree :: SystemState -> [ErrorMsg]
+> getTextualTypeErrFromTree m@(SystemState f t g ty h) =
+>	let 	mod = shapeTree g
+>	in	fst $ getTypeErrors "" 0 0 mod
+
+> class TreeErrorManager t where
+>	getSyntaxErrors :: String -> Int -> Int -> t -> [ErrorMsg]
+>	getTypeErrors :: String -> Int -> Int ->  t -> ([ErrorMsg], [ErrorMsg]) -- textual, graphical
+>	getTypeErrorsPrec :: [ErrorMsg] -> String -> Int -> Int ->  t -> ([ErrorMsg], [ErrorMsg]) -- textual, graphical
+>	mapGetTypeErrors :: String -> Int -> Int -> [t] -> ([ErrorMsg], [ErrorMsg]) -- textual, graphical
+>	getSyntaxErrors _ _ _ _ = []
+>	getTypeErrors _ _ _ _ = ([],[])
+>	getTypeErrorsPrec _ = getTypeErrors
+>	mapGetTypeErrors fnD fnL fnOrCl lst =
+>		uncurry (\a b -> (concat a, concat b)) $ unzip $ map (getTypeErrors fnD fnL fnOrCl) lst
+
+
+> instance TreeErrorManager (Module (SrcSpanInfo, ItemState)) where
+>	getSyntaxErrors fnD fnL fnOrCl mod@(Module svi mh mp imp decl) =
+>		case mh of
+>			Nothing		-> concat $ map (getSyntaxErrors fnD 1 fnOrCl) decl
+>			Just mh		-> 
+>				(getSyntaxErrors fnD fnL fnOrCl mh) ++ 
+>				(concat $ map (getSyntaxErrors fnD 1 fnOrCl) decl)
+>	getTypeErrors fnD fnL fnOrCl mod@(Module svi mh mp imp decl) = 
+>		mapGetTypeErrors fnD 1 fnOrCl decl
+
+> findMultipleDeclErrInModule mod@(Module svi mh mp imp decl) =
+>	Module svi mh mp imp (findMultipleDeclErr decl)
+
+> findMultipleDeclErr decl =
+>	map (findIt) decl
+>	where
+>	lstFn = map getFnName decl
+>	getFnName (FunBind (s, vi) lstMatch) = synonym vi
+>	getFnName _ = ""
+>	findIt (FunBind (s, vi) lstMatch)
+>		| ((length $ elemIndices (synonym vi) lstFn) > 1) = (FunBind (s, vi{typeErr="Multiple declaration of " ++ (synonym vi)}) lstMatch)
+>		| otherwise					  = FunBind (s, vi) lstMatch
+>	findIt anyElse = anyElse
+
+> getTypeErrorsMultiDecl fnD fnL fnOrCl decl
+>		| ((typeErr $ snd $ ann decl) /= "")	=
+>		let	tErr 	= [(setErrMsgTxtual (fst $ ann decl) strAreaFnCl fnD 0 0 "" (" " ++ (synonym $ snd $ ann decl) ++ " : " ++ (typeErr $ snd $ ann decl)))]
+>			gErr 	= [(setErrMsg (snd $ ann decl) strAreaFnCl fnD 0 0 "" (" " ++ (synonym $ snd $ ann decl) ++ " : " ++ (typeErr $ snd $ ann decl)))]
+>		in	(tErr, gErr)
+>		| otherwise		= ([], [])
+
+
+> instance TreeErrorManager (ModuleHead (SrcSpanInfo, ItemState)) where
+>	getSyntaxErrors fnD fnL fnOrCl (ModuleHead svi mn wt el)	=
+>		getSyntaxErrors fnD fnL fnOrCl mn
+
+> instance TreeErrorManager (ModuleName (SrcSpanInfo, ItemState)) where
+>	getSyntaxErrors fnD fnL fnOrCl (ModuleName (s, vi) mn)
+>		| (((ord $ head mn) >= 97) && ((ord $ head mn) <= 122))
+>			= [(setErrMsg vi strAreaFnCl "" 0 0 ""  "Module name should start with capital letter.")]
+>		| otherwise
+>			= []
+
+> instance TreeErrorManager (Decl (SrcSpanInfo, ItemState)) where
+>	getSyntaxErrors fnD fnL fnOrCl (FunBind (s, vi) lstMatch)
+>		| ((synonym vi) == "")
+>			= [(setErrMsg vi strAreaFnCl fnD fnL 1 (synonym vi)  "Function name can not be empty.")] ++
+>			  (concat $ map (getSyntaxErrors (getFnDtls fnD fnL 1 (synonym vi)) fnL 1) lstMatch)
+>		| (((ord $ head (synonym vi)) >= 65) && ((ord $ head (synonym vi)) <= 90))
+>			= [(setErrMsg vi strAreaFnCl fnD fnL 1 (synonym vi) "Function name can not start with capital letter.")] ++
+>			  (concat $ map (getSyntaxErrors (getFnDtls fnD fnL 1 (synonym vi)) fnL 1) lstMatch)
+>		| otherwise
+>			= (concat $ map (getSyntaxErrors (getFnDtls fnD fnL 1 (synonym vi)) fnL 1) lstMatch)
+>	getSyntaxErrors fnD fnL fnOrCl _	= []
+
+>	getTypeErrors fnD fnL fnOrCl decl@(FunBind (s, vi) lstMatch) = 
+>		addTypeErrs
+>			(mapGetTypeErrors (getFnDtls fnD fnL 1 (synonym vi)) fnL fnOrCl lstMatch)
+>			(getTypeErrorsMultiDecl "" 0 0 decl)
+>	getTypeErrors fnD fnL fnOrCl _	= ([], [])
+
+> instance TreeErrorManager (Match (SrcSpanInfo, ItemState)) where
+>	getSyntaxErrors fnD fnL fnOrCl (Match (s, vi) _ _ rhs (Just(BDecls _ lstDecl))) = 
+>		concat $ map (getSyntaxErrors fnD 2 1) lstDecl
+>	getSyntaxErrors fnD fnL fnOrCl _ = 
+>		[]
+
+>	getTypeErrors fnD fnL fnOrCl (Match (s, vi) _ _ rhs (Just(BDecls _ lstDecl))) = 
+>		addTypeErrs 	(getTypeErrors (getFnDtls fnD 1 2 (synonym vi)) fnL fnOrCl rhs) 
+>				(mapGetTypeErrors (getFnDtls fnD 1 2 (synonym vi)) 2 fnOrCl lstDecl)
+>	getTypeErrors fnD fnL fnOrCl mtch@(Match (s, vi) _ _ rhs Nothing) = 
+>		addTypeErrs
+>				(getTypeErrorsMtch (getFnDtls fnD 1 2 (synonym vi)) fnL fnOrCl mtch)
+>				(getTypeErrors (getFnDtls fnD 1 2 (synonym vi)) fnL fnOrCl rhs)
+>	getTypeErrors fnD fnL fnOrCl _ = ([], [])
+
+> instance TreeErrorManager (Rhs (SrcSpanInfo, ItemState)) where
+>	getTypeErrors fnD fnL fnOrCl (UnGuardedRhs s exp) = 
+>		(getTypeErrors fnD fnL fnOrCl exp)
+>	getTypeErrors fnD fnL fnOrCl otherRhs = 
+>		([], [])
+
+> addTypeErrs (tErr1, gErr1) (tErr2, gErr2) = (reverse (tErr1++ tErr2), reverse (gErr1++ gErr2))
+
+> instance TreeErrorManager (Exp (SrcSpanInfo, ItemState)) where
+>	getTypeErrors fnD fnL fnOrCl (App svi eOne eTwo) = 
+>		if ((typeErr $ snd $ ann eTwo) /= "")
+>		then
+>			addTypeErrs
+>				(getTypeErrorsAnyExp fnD fnL fnOrCl eTwo)
+>				(addTypeErrs	(getTypeErrors fnD fnL fnOrCl eOne)
+>						(getTypeErrors fnD fnL fnOrCl eTwo))
+>		else
+>			(addTypeErrs	(getTypeErrors fnD fnL fnOrCl eOne)
+>					(getTypeErrors fnD fnL fnOrCl eTwo))
+
+>	getTypeErrors fnD fnL fnOrCl (Paren svi eOne) = 
+>		(getTypeErrors fnD fnL fnOrCl eOne)
+
+>	getTypeErrors fnD fnL fnOrCl (If (_, vi) eOne eTwo eThree) = 
+>		addTypeErrs
+>			(addTypeErrs	(getTypeErrors fnD fnL fnOrCl eOne)
+>					(getTypeErrors fnD fnL fnOrCl eTwo))
+>			(getTypeErrors fnD fnL fnOrCl eThree)
+
+>	{-getTypeErrors fnD fnL fnOrCl (Var (s, vi) v) 
+>		| ((typeErr vi) /= "")	=
+>		let	tErr 	= [(setErrMsgTxtual s strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint v) ++ " : " ++ (typeErr vi)))]
+>			gErr 	= [(setErrMsg vi strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint v) ++ " : " ++ (typeErr vi)))]
+>		in	(tErr, gErr)
+>		| otherwise		= ([], [])-}
+>	getTypeErrors fnD fnL fnOrCl exp = 
+>		let ntype = nodeType $ snd $ ann $ exp
+>		in case ntype of
+>			(UnDefined, tyInfo) 	-> getTypeErrorsUndefinedExp fnD fnL fnOrCl exp
+>			_			-> ([], [])
+>	--getTypeErrors fnD fnL fnOrCl exp = ([], []) --getTypeErrorsAnyExp fnD fnL fnOrCl exp --
+
+> getTypeErrorsAnyExp fnD fnL fnOrCl exp 
+>		| ((typeErr $ snd $ ann exp) /= "")	=
+>		let	tErr 	= [(setErrMsgTxtual (fst $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ (typeErr $ snd $ ann exp)))]
+>			gErr 	= [(setErrMsg (snd $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ (typeErr $ snd $ ann exp)))]
+>		in	(tErr, gErr)
+>		| otherwise		= ([], [])
+
+> getTypeErrorsMtch fnD fnL fnOrCl exp 
+>		| ((typeErr $ snd $ ann exp) /= "")	=
+>		let	tErr 	= [(setErrMsgTxtual (fst $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ (typeErr $ snd $ ann exp)))]
+>			gErr 	= [(setErrMsg (snd $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ (typeErr $ snd $ ann exp)))]
+>		in	(tErr, gErr)
+>		| otherwise		= ([], [])
+
+> getTypeErrorsUndefinedExp fnD fnL fnOrCl exp 
+>		| ((typeErr $ snd $ ann exp) /= "")	=
+>		let	tErr 	= [(setErrMsgTxtual (fst $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ ("Function not defined.")))]
+>			gErr 	= [(setErrMsg (snd $ ann exp) strAreaFnBody fnD 0 0 "" (" " ++ (prettyPrint exp) ++ " : " ++ ("Function not defined.")))]
+>		in	(tErr, gErr)
+>		| otherwise		= ([], [])
+
+> setErrMsg vi errArea prevFnD fnLevel fnOrCl fnName msg = 	-- fnLevel = 1 Global Fn, 2 Global Cl, 3 Local Fn, 4 Local Cl
+>	ErrorMsg 
+>		(pointX (itemPosition vi) + 40) 
+>		(pointY (itemPosition vi) + 10) 
+>		(errAr ++ (getFnDtls prevFnD fnLevel fnOrCl fnName) ++ msg)
+>	where
+>	errAr 	| (fnLevel == 1)	= " " ++ errArea
+>		| (fnLevel == 2)	= " Local " ++ errArea
+>		| otherwise		= errArea
+
+> setErrMsgTxtual s errArea prevFnD fnLevel fnOrCl fnName msg = 	-- fnLevel = 1 Global Fn, 2 Global Cl, 3 Local Fn, 4 Local Cl
+>	ErrorMsg 
+>		(srcSpanStartLine $ srcInfoSpan s) 
+>		(srcSpanEndLine $ srcInfoSpan s) 
+>		(errAr ++ (getFnDtls prevFnD fnLevel fnOrCl fnName) ++ msg)
+>	where
+>	errAr 	| (fnLevel == 1)	= " " ++ errArea
+>		| (fnLevel == 2)	= " Local " ++ errArea
+>		| otherwise		= errArea
+
+> getFnDtls prevFnD fnLevel fnOrCl fnName 
+>			| (fnLevel == 1 && fnOrCl == 1) 	= prevFnD ++ " Function : " ++ fnName ++ " - "
+>			| (fnLevel == 1 && fnOrCl == 2) 	= prevFnD ++ " Clause : " ++ fnName ++ " - "
+>			| (fnLevel == 2 && fnOrCl == 1) 	= prevFnD ++ " Local Fn : " ++ fnName ++ " - "
+>			| (fnLevel == 2 && fnOrCl == 2) 	= prevFnD ++ " Local Cl : " ++ fnName ++ " - "
+>			| otherwise		= prevFnD
+
+> getTotalErrorString m = 
+>	let 	lstErr		= getGraTypeErrFromTree m
+>		totalStr 	= [errorMsg e | e <- getGraTypeErrFromTree m]
+>	in	totalStr
+
+> findAFunctionInError m fnName = 
+>	let 	totalStr	= getTotalErrorString m
+>		isFound		= elem ("Function : " ++ fnName) totalStr
+>	in	isFound
+
+> {-isThereAnError node = 
+>	let 	lenErr	= showLog ((synonym $ snd $ ann node) ++ "--" ++ (show $ (getTypeErrors "" 0 0 node)) ++ "--" ++ (show $ (length $ snd $ getTypeErrors "" 0 0 node))) (length $ snd $ getTypeErrors "" 0 0 node)
+>	in	lenErr > 0-}
+
+> isThereAnError node = 
+>	let 	lenErr	=(length $ snd $ getTypeErrors "" 0 0 node)
+>	in	lenErr > 0
+
+
+

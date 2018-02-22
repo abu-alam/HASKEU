@@ -1,0 +1,6 @@
+module Test2 where
+
+fn2 c d = map d c
+
+fn::Int->Int->Int
+fn a b = a

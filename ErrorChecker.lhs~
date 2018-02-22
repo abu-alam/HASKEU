@@ -1,0 +1,8 @@
+> module TreeErrorManagement where
+
+> import ModelType
+
+> import Language.Haskell.Exts.Annotated 
+
+> class TreeErrorManager t where
+>	getSyntaxError :: t -> [] -> []

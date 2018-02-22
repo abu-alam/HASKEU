@@ -1,0 +1,51 @@
+> module GUIGraphicalEditor where
+
+> import Graphics.UI.WX
+> import Graphics.UI.WXCore 
+> import Utils
+
+> graphicalEditorIconPath :: String
+> graphicalEditorIconPath = "./resources/images/guiTextual/"
+
+> gui :: Frame () -> IO (TabPage, Int, Int)
+> gui win =
+>          do
+> 	     pnlWin   <- panel  win []
+>	     sw <- scrolledWindow pnlWin [bgcolor := white, scrollRate := sz 10 10, 
+>                                         fullRepaintOnResize := False, 
+>                                         style := wxHSCROLL .|. wxVSCROLL, 
+>                                         virtualSize := sz 50000 50000]
+>	     btnSelection <- button pnlWin [text := "Sel", tooltip := "Selection", 
+>					    clientSize := sz 40 40]
+> 	     btnOperator <- button pnlWin [text := "Op", tooltip := "Add Operator", 
+>					    clientSize := sz 40 40]
+>            btnFunction <- button pnlWin [text := "Fn", tooltip := "Add Function", 
+>					    clientSize := sz 40 40]	
+>	     btnConstTant <- button pnlWin [text := "Cnst", tooltip := "Add Constant", 
+>					    clientSize := sz 40 40]
+>	     btnArgument <- button pnlWin [text := "Arg", tooltip := "Add Argument", 
+>					    clientSize := sz 40 40]
+>            btnIfStmt <- button pnlWin [text := "(+)", tooltip := "Add IF Statement", 
+>					    clientSize := sz 40 40, on command := repaint sw]
+>	     btnCaseStmt <- button pnlWin [text := "Case", tooltip := "Add CASE Statement", 
+>					    clientSize := sz 40 40]
+>	     btnJoin <- button pnlWin [text := "Join", tooltip := "Joining", 
+>					    clientSize := sz 40 40]
+>	     btnDelete <- button pnlWin [text := "Del", tooltip := "Delete", 
+>					    clientSize := sz 40 40, on command := repaint sw]
+	
+>	     lstError  <- singleListBox pnlWin []
+
+>	     let tabGraEditor = tab "Graphical View" $ container pnlWin $ margin 10 $ column 5 
+>				[row 0 [widget btnSelection, widget btnOperator, widget btnFunction, 
+>				 	widget btnConstTant, widget btnArgument, widget btnIfStmt, widget btnCaseStmt,
+>				 	widget btnJoin, hstretch $ widget btnDelete],
+>			         row 1 [fill $ minsize (sz 360 460) $ widget sw],
+>			         row 2 [fill $ label "Error Messages"],
+>			         row 3 [fill $ widget lstError]]
+>  	    return (tabGraEditor, sw)
+
+
+path3 = "./resources/images/guiGraphicalEditorModule/"
+
+

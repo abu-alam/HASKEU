@@ -1,0 +1,7 @@
+> module Utils where
+>
+> getFilePathIO :: String -> String -> IO FilePath
+> getFilePathIO path img = return (path ++ img)
+
+> getFilePath :: String -> String -> String
+> getFilePath path img = (path ++ img)

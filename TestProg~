@@ -1,0 +1,14 @@
+> {-
+ak lj kj b = c d
+a b = c
+a c = d
+f g = k
+fun a = putStr "Hello World"
+fv a b c = map a b "zzz" c "kkkk"
+> -}
+
+map a b = app (app map a) b
+
+ak lj kj b = c (d e h) (f t) g
+
+ak lj kj b = c (d e h k) (f t x y k) g

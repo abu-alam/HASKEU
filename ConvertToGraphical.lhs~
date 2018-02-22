@@ -1,0 +1,5 @@
+> module ConvertToGraphical where
+>
+> convertToGraphical :: TextualForm -> GraphicalForm
+> 
+

@@ -1,0 +1,30 @@
+> module BR_IL_Common where
+
+> import MVC
+> import ModelType
+
+> import Language.Haskell.Exts.Annotated hiding (layout, style)
+
+> getTextualErrors :: ModelType -> [ErrorMsg]
+> getTextualErrors m = 
+>	case (getTextualSyntaxError m) of
+>		Just err -> [err]
+>		Nothing  -> []
+
+> {-getTextualSyntaxError :: ModelType -> (Maybe ErrorMsg)
+> getTextualSyntaxError (ModelType _ (TextualForm t _ _) _ _) = 
+>	let pTree = parseFileContentsWithComments defaultParseMode t
+>	in case pTree of
+>		ParseOk (mod,comments) -> Nothing
+>		err 		       -> Just (convertSyntaxError err)-}
+
+> getTextualSyntaxError :: ModelType -> (Maybe ErrorMsg)
+> getTextualSyntaxError (ModelType _ (TextualForm t _ _) _ (ModelHistories h cPos)) = 
+>	let pTree = parseFileContentsWithComments defaultParseMode t
+>	in case pTree of
+>		ParseOk (mod,comments) -> Nothing
+>		err 		       -> Just ((convertSyntaxError err)++(length h))
+
+> convertSyntaxError :: (ParseResult p) -> ErrorMsg
+> convertSyntaxError (ParseFailed (SrcLoc f l c) msg) =
+>	ErrorMsg l c msg

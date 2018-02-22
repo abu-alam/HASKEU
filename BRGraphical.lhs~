@@ -1,0 +1,902 @@
+> module BRGraphical where
+
+> import MVC
+> import MVC_WX
+> import ModelType
+> import ConvertFromGraphical
+> import ConvertFromTextual
+> import Drawings
+> import BusinessRule
+> import GraphicUtils
+
+> import Graphics.UI.WX
+> import Graphics.UI.WXCore hiding (Module)
+> import Language.Haskell.Exts.Annotated
+> import Data.List --hiding (union)
+
+> data BRGraCtlr = Command_BTN_Selection |
+>		   Command_BTN_LabelEdit |
+>		   Command_BTN_AddNewFunction |
+>		   Command_BTN_AddNewClause |
+>		   Command_BTN_FunctionPattern |
+>		   Command_BTN_PatternList01 |
+>		   Command_BTN_PatternList02 |
+>		   Command_BTN_CallFunction |
+>		   Command_BTN_Operator |
+>		   Command_BTN_Constant |
+>		   Command_BTN_IfStmt |
+>		   Command_BTN_CaseStmt |
+>		   Command_BTN_Join |
+>		   Command_BTN_Delete |
+>		   KB_UP_TXT_LblEditor |
+>		   KB_Return_TXT_LblEditor |
+>		   Focus_Lost_TXT_LblEditor |
+>		   MSE_LB_Up_SW |
+>		   MSE_LB_Down_SW |
+>		   MSE_LB_Drag_SW |
+>		   MSE_Move_SW |
+>		   KB_UP_SW |
+>		   KB_Down_SW 
+
+> instance BRController BRGraCtlr () where
+> 	brController Command_BTN_Selection = commandBtnSelection
+> 	brController Command_BTN_LabelEdit = commandBtnLabelEdit
+> 	brController Command_BTN_AddNewFunction = commandBtnAddNewFunction
+> 	brController Command_BTN_AddNewClause = commandBtnAddNewClause
+> 	brController Command_BTN_FunctionPattern = commandBtnFunctionPattern
+> 	brController Command_BTN_PatternList01 = commandBtnPatternList01
+> 	brController Command_BTN_PatternList02 = commandBtnPatternList02
+> 	brController Command_BTN_CallFunction = commandBtnCallFunction
+> 	brController Command_BTN_Operator = commandBtnOperator
+> 	brController Command_BTN_Constant = commandBtnConstant
+> 	brController Command_BTN_IfStmt = commandBtnIfStmt
+> 	brController Command_BTN_CaseStmt = commandBtnCaseStmt
+> 	brController Command_BTN_Join = commandBtnJoin
+
+> instance BRController BRGraCtlr TextualForm where
+> 	brController KB_UP_TXT_LblEditor = kbUpTxtLabelEditor
+
+> instance BRController BRGraCtlr EventKey where
+> 	brController KB_Return_TXT_LblEditor = kbReturnLabelEditor
+
+> instance BRController BRGraCtlr EventMouse where
+> 	brController MSE_LB_Up_SW = mouseLeftUpSW
+> 	brController MSE_Move_SW = mouseMoveSW 
+
+> --BRtoModel
+> commandBtnSelection :: BRtoModel () ModelType
+> commandBtnSelection _ (f, t, g) = (f, t, g {drawMode = ModeSelection})
+
+> commandBtnLabelEdit :: BRtoModel () ModelType
+> commandBtnLabelEdit _ (f, t, g) = (f, t, g {drawMode = ModeLabelEdit})
+
+> commandBtnAddNewFunction :: BRtoModel () ModelType
+> commandBtnAddNewFunction _ (f, t, g) = (f, t, g {drawMode = ModeNewFn})
+
+> commandBtnAddNewClause :: BRtoModel () ModelType
+> commandBtnAddNewClause _ (f, t, g) = (f, t, g {drawMode = ModeNewCl})
+
+> commandBtnFunctionPattern :: BRtoModel () ModelType
+> commandBtnFunctionPattern _ (f, t, g) = (f, t, g {drawMode = ModeFunctionPattern})
+
+> commandBtnPatternList01 :: BRtoModel () ModelType
+> commandBtnPatternList01 _ (f, t, g) = (f, t, g {drawMode = ModePatternList01})
+
+> commandBtnPatternList02 :: BRtoModel () ModelType
+> commandBtnPatternList02 _ (f, t, g) = (f, t, g {drawMode = ModePatternList02})
+
+> commandBtnCallFunction :: BRtoModel () ModelType
+> commandBtnCallFunction _ (f, t, g) = (f, t, g {drawMode = ModeCallFunction})
+
+> commandBtnOperator :: BRtoModel () ModelType
+> commandBtnOperator _ (f, t, g) = (f, t, g {drawMode = ModeOp})
+
+> commandBtnConstant :: BRtoModel () ModelType
+> commandBtnConstant _ (f, t, g) = (f, t, g {drawMode = ModeCnst})
+
+> commandBtnIfStmt :: BRtoModel () ModelType
+> commandBtnIfStmt _ (f, t, g) = (f, t, g {drawMode = ModeIfStmt})
+
+> commandBtnCaseStmt :: BRtoModel () ModelType
+> commandBtnCaseStmt _ (f, t, g) = (f, t, g {drawMode = ModeCaseStmt})
+
+> commandBtnJoin :: BRtoModel () ModelType
+> commandBtnJoin _ (f, t, g) = (f, t, g {drawMode = ModeJoinOne})
+
+> commandBtnDel :: BRtoModel () ModelType
+> commandBtnDel _ (f, t, g) = (f, t, g)
+
+> kbUpTxtLabelEditor :: BRtoModel TextualForm ModelType
+> kbUpTxtLabelEditor txt (f, t, g) = let mod = shapeTreeModule (shapeTree g)
+>					 mod1 = snd $ editSelectedLabel LabelTextEditMode txt False mod
+>					 ot = outsideTree (shapeTree g)
+>					 -- ot1 = fst $ editSelectedLabel False txt ot
+>				         g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>                                     in (f, t, g1)
+
+> kbReturnLabelEditor :: BRtoModel EventKey ModelType
+> kbReturnLabelEditor _ (f, t, g) = deselectLabel (f, t, g)
+
+> --make the system deadlock, maybe conflict with KB Return??
+> leaveLabelEditor :: BRtoModel () ModelType
+> leaveLabelEditor _ (f, t, g) = deselectLabel (f, t, g)
+
+> deselectLabel :: ModelType -> ModelType
+> deselectLabel (f, t, g) = let mod = shapeTreeModule (shapeTree g)
+>				mod1 = snd $ editSelectedLabel DeselectLabelMode (TextualForm "" 0)False mod
+>				ot = outsideTree (shapeTree g)
+>				-- ot1 = fst $ deselectLabel False ot
+>				g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>                           in (f, t, g1)
+
+> mouseMoveSW :: BRtoModel EventMouse ModelType
+> mouseMoveSW (MouseMotion p _) (f, t, g) = 
+>	case (drawMode g) of
+>		ModeCallFunction -> let d   = drawMode g
+>				        mod = shapeTreeModule (shapeTree g)
+>				        mod1 = snd $ selectShape d p False mod
+>			                ot = outsideTree (shapeTree g)
+>				     -- ot1 = fst $ editSelectedLabel False txt ot
+>				        g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				    in (f, t, g1)
+>		_	         -> (f, t, g)
+> mouseMoveSW _ (f, t, g) = (f, t, g)
+
+> --must not be used
+> autoLayout (f,t,g) = 
+>			let mod = shapeTreeModule $ shapeTree g
+>			    g2 = createShapeTree mod g
+>			in (f,t,g2)
+
+> mouseLeftUpSW :: BRtoModel EventMouse ModelType
+> mouseLeftUpSW (MouseLeftUp p _) (f, t, g) = 
+>	case (drawMode g) of
+>		ModeSelection -> (f, t, g)
+>		ModeCallFunction -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addFuncApp p mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				    in autoLayout (f, t, g1)
+>		ModeNewFn     -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addNewFunc mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in autoLayout (f, t, g1)
+>		ModeNewCl     -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addNewClause mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in autoLayout (f, t, g1)
+>		ModeFunctionPattern     -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addFunctionPattern mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in autoLayout (f, t, g1)
+>		ModePatternList01     -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addPatternList01 mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in autoLayout (f, t, g1)
+>		ModePatternList02     -> let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addPatternList02 mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in autoLayout (f, t, g1)
+>		ModeCnst     ->  let 
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = addNewConstant mod
+>			             ot = outsideTree (shapeTree g)
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in (f, t, g1)
+>		ModeLabelEdit -> let d = drawMode g
+>				     mod = shapeTreeModule (shapeTree g)
+>				     mod1 = snd $ selectShape d p False mod
+>			             ot = outsideTree (shapeTree g)
+>				     -- ot1 = fst $ editSelectedLabel False txt ot
+>				     g1 = g {shapeTree = ModuleGr mod1 ot}--ot1
+>				 in (f, t, g1)
+>		_	      -> (f, t, g)
+
+> --Temp
+> addNewFunc (Module gi mh mp imp decl) = 
+>	if (length decl == 0)
+>	then addNewFunc01 (Module gi mh mp imp decl)
+>	else addNewFunc02 (Module gi mh mp imp decl)
+
+> addNewFunc01 (Module gi mh mp imp decl) = 
+>	let x = 0
+>	    y = 30
+>	    var1 = Var defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (UnQual defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (Ident defaultGraInfo{shapeSize = sz 80 30, shapePosition = (pt (x+130) (y+125))} "temp1"))
+>	    --var2 = Var defaultGraInfo (UnQual defaultGraInfo (Ident defaultGraInfo "temp2"))
+>           --app = App defaultGraInfo var1 var2
+>           rhs = UnGuardedRhs defaultGraInfo var1
+>	    pat = (PVar defaultGraInfo (Ident defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 (y+90))} "a"))
+>           mtch = Match defaultGraInfo {shapeSize = sz 300 300, shapePosition = (pt 0 (y+60))} (Ident defaultGraInfo  {shapeSize = sz 300 30, shapePosition = (pt 0 (y+60))} "testFunc") [pat] rhs Nothing
+>	    funBindDeflt = FunBind defaultGraInfo {shapeSize = sz 300 300, shapePosition = (pt 0 (y+30))} [mtch]
+>	    decl1 = [funBindDeflt]
+>	in (Module gi mh mp imp decl1)
+
+> addNewClause (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl (Ident _ mtchName) pat0 _ _ = last lstMtch0
+>	    Point x y 	       = nextGrPos True False (sz 0 0) (giLastCl)
+>	    var1 = Var defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (UnQual defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (Ident defaultGraInfo{shapeSize = sz 80 30, shapePosition = (pt (x+130) (y+125))} "temp1"))
+>	    --var2 = Var defaultGraInfo (UnQual defaultGraInfo (Ident defaultGraInfo "temp2"))
+>           --app = App defaultGraInfo var1 var2
+>           rhs = UnGuardedRhs defaultGraInfo var1
+>	    (c,pat1) = mapAccumL (changePatXY x y) 0 pat0
+>           mtch = Match defaultGraInfo {shapeSize = sz 300 300, shapePosition = (pt 0 (y+60))} (Ident defaultGraInfo  {shapeSize = sz 300 30, shapePosition = (pt 0 (y+60))} mtchName) pat1 rhs Nothing
+>	    decl1 = (init decl) ++ [FunBind giLastFn (lstMtch0++[mtch])]
+>	in (Module gi mh mp imp decl1)
+
+> changePatXY x y c (PVar _ (Ident _ patName)) = 
+>	(,) (c+1) $ (PVar defaultGraInfo (Ident defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 (y+90+c*30))} patName))
+> changePatXY x y c (PList gi lstP) = 
+>	let (c1, lstP1) = mapAccumL (changePatXY x y) 0 lstP
+>	in (,) (c+1) $ (PList defaultGraInfo {shapeSize = sz 100 60, shapePosition = (pt 0 (y+90+c*30))} lstP1)
+
+> addFunctionPattern (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl i pat0 rhs _ = last lstMtch0
+>	    Point x y 	       = getNextPatPos (last pat0)
+>	    pat1 = pat0 ++ [addFunPat y]
+>           mtch = Match giLastCl i pat1 rhs Nothing
+>	    decl1 = (init decl) ++ [FunBind giLastFn ((init lstMtch0)++[mtch])]
+>	in (Module gi mh mp imp decl1)
+
+> addPatternList01 (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl i pat0 rhs _ = last lstMtch0
+>	    Point x y 	       = getNextPatPos (last pat0)
+>	    pat1 = pat0 ++ [addPatList01 y]
+>           mtch = Match giLastCl i pat1 rhs Nothing
+>	    decl1 = (init decl) ++ [FunBind giLastFn ((init lstMtch0)++[mtch])]
+>	in (Module gi mh mp imp decl1)
+
+> addPatternList02 (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl i pat0 rhs _ = last lstMtch0
+>	    Point x y 	       = getNextPatPos (last pat0)
+>	    pat1 = pat0 ++ [addPatList02 y]
+>           mtch = Match giLastCl i pat1 rhs Nothing
+>	    decl1 = (init decl) ++ [FunBind giLastFn ((init lstMtch0)++[mtch])]
+>	in (Module gi mh mp imp decl1)
+
+> getNextPatPos (PVar gi0 (Ident gi _)) =  nextGrPos True False (sz 0 0) (gi)
+> getNextPatPos (PList gi _) =  nextGrPos True False (sz 0 0) (gi)
+> getNextPatPos (PParen gi _) =  nextGrPos True False (sz 0 0) (gi)
+
+> addFunPat y = 
+>	(PVar defaultGraInfo (Ident defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 y)} "a"))
+
+> addPatList01 y = 
+>	(PList defaultGraInfo {shapeSize = sz 100 60, shapePosition = (pt 0 y)} [])
+
+> addPatList02 y = 
+>	let gi1   = defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 y)}
+>           pvar1 = (PVar defaultGraInfo (Ident gi1 "x"))
+>	    gi2   = defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 (y+30))}
+>	    pvar2 = (PVar defaultGraInfo (Ident gi2 "xs"))
+>	    q1    = Special defaultGraInfo (Cons defaultGraInfo)
+>	    gi3   = defaultGraInfo {shapeSize = getSize (shapePosition gi1) (shapePosition gi2) szPat,
+>			            	  shapePosition = (shapePosition gi1)}
+>	    pInfix= PInfixApp gi3 pvar1 q1 pvar2
+>	in PParen gi3 pInfix
+
+> addNewFunc02 (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl i pat0 _ _ = last lstMtch0
+>	    Point x y 	       = nextGrPos True False (sz 0 0) (giLastCl)
+>	    var1 = Var defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (UnQual defaultGraInfo{shapeSize = sz 80 60, shapePosition = (pt (x+130) (y+110))} (Ident defaultGraInfo{shapeSize = sz 80 30, shapePosition = (pt (x+130) (y+125))} "temp1"))
+>	    --var2 = Var defaultGraInfo (UnQual defaultGraInfo (Ident defaultGraInfo "temp2"))
+>           --app = App defaultGraInfo var1 var2
+>           rhs = UnGuardedRhs defaultGraInfo var1
+>	    pat = (PVar defaultGraInfo (Ident defaultGraInfo {shapeSize = sz 100 30, shapePosition = (pt 0 (y+90))} "a"))
+>           mtch = Match defaultGraInfo {shapeSize = sz 300 300, shapePosition = (pt 0 (y+60))} (Ident defaultGraInfo  {shapeSize = sz 300 30, shapePosition = (pt 0 (y+60))} "testFunc") [pat] rhs Nothing
+>	    funBindDeflt = FunBind defaultGraInfo {shapeSize = sz 300 300, shapePosition = (pt 0 (y+30))} [mtch]
+>	    decl1 = decl ++ [funBindDeflt]
+>	in (Module gi mh mp imp decl1)
+
+> addFuncApp ptClk (Module gi mh mp imp decl) = 
+>	let FunBind giLastFn lstMtch0 = last decl
+>	    Match giLastCl i p (UnGuardedRhs g3 e) l = last lstMtch0
+>           (_ , e1) = addFuncAppOn False ptClk e e 1
+>	    mtch1 = Match giLastCl i p (UnGuardedRhs gi e1) l
+>	    lstMtch1 = (init lstMtch0) ++ [mtch1]
+>	    funBind = FunBind giLastFn lstMtch1
+>	    decl1 = (init decl) ++ [funBind]
+>	in (Module gi mh mp imp decl1)
+
+> removeFirstParen (Paren gi e) _ = e
+> removeFirstParen _ whole = whole
+
+> addFuncAppOn True _ _ appPrev _ = (True, appPrev)
+> addFuncAppOn False ptClk whole (App gi eOne eTwo) oOrT = 
+>		v
+>		where
+>		(added1, eTwo1) = addFuncAppOn False ptClk whole eTwo 2
+>		v = if (added1 == True)
+>		       then (True, App gi eOne eTwo1)
+>		       else addFuncAppOn added1 ptClk whole eOne 1
+
+> addFuncAppOn False ptClk whole (Paren gi e) oOrT = 
+>		(added, Paren gi e1)
+>		where
+>		(added, e1) = addFuncAppOn False ptClk e e 1
+> addFuncAppOn False ptClk whole (Var gi (UnQual giUQ (Ident giI s))) oOrT = 
+>	let appPrev = (Var gi (UnQual giUQ (Ident giI s)))
+>	    (i,o) = insideShapeInpOut ptClk giUQ
+>	    v1 = if (i > 0)
+>	         then (True, addFuncAppInput whole appPrev oOrT)
+>                else if (o == True)
+>                     then (True, addFuncAppOutput whole appPrev oOrT)
+>	              else (False, appPrev)
+>	in v1
+
+
+> addFuncAppInput whole appPrev 1 = App defaultGraInfo whole newAppVar
+> addFuncAppInput whole appPrev 2 = Paren defaultGraInfo (App defaultGraInfo appPrev newAppVar)
+> addFuncAppOutput whole appPrev 1 = App defaultGraInfo newAppVar whole
+> addFuncAppOutput whole appPrev 2 = Paren defaultGraInfo (App defaultGraInfo newAppVar appPrev)
+> newAppVar = Var defaultGraInfo (UnQual defaultGraInfo (Ident defaultGraInfo "temp1"))
+
+> getLastCallFuncPos decl = 
+>	let FunBind _ mtch = decl !! 0
+>	    mtch1 = mtch !! 0
+>	    Match _ _ _ (UnGuardedRhs _ r) _ = mtch1
+>	in  getLastCallFun r
+
+> getLastCallFun (App _ eOne (Var _ (UnQual _ (Ident g _)))) = 
+>	shapePosition g
+> getLastCallFun (App _ eOne (Lit _ (String g _ _))) = 
+>	shapePosition g
+> getLastCallFun (Var _ (UnQual _ (Ident g _))) = 
+>	shapePosition g
+> getLastCallFun (Lit _ (String g _ _)) = 
+>	shapePosition g
+
+
+
+> addNewConstant (Module gi mh mp imp decl) = 
+>	let FunBind g0 mtch = decl !! 0
+>	    mtch1 = mtch !! 0
+>	    Match g i p (UnGuardedRhs g3 r) l = mtch1
+>	    pos = getLastCallFuncPos decl
+>	    var1 = (Lit defaultGraInfo{shapeSize = sz 80 30, shapePosition = addToPoint pos (sz 110 0)} (String defaultGraInfo{shapeSize = sz 80 30, shapePosition = addToPoint pos (sz 110 0)} "StringCnst" ""))
+>           app = App defaultGraInfo r var1
+>           rhs = UnGuardedRhs g3 app
+>	    mtch2 = Match g i p rhs l
+>	    funBindDeflt = FunBind g0  [mtch2]
+>	    decl1 = [funBindDeflt]
+>	in (Module gi mh mp imp decl1)
+> --Temp
+
+> mouseLeftDownSW :: BRtoModel EventMouse ModelType
+> mouseLeftDownSW (MouseLeftDown p _) (f, t, g) = convertFromGraphical (f, t, g)
+
+> mouseLeftDragSW :: BRtoModel EventMouse ModelType
+> mouseLeftDragSW (MouseLeftDrag p _) (f, t, g) = convertFromGraphical (f, t, g)
+
+> keyboardSW :: BRtoModel EventKey ModelType
+> keyboardSW (EventKey (k) (modi) _) (f, t, g) = convertFromGraphical (f, t, g)
+
+> scrollSW :: BRtoModel EventScroll ModelType
+> scrollSW st (f, t, g) = 
+>	case st of
+>		(ScrollTop Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+> 		(ScrollBottom Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+>		(ScrollLineUp Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+> 		(ScrollLineDown Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+>		(ScrollPageUp Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+> 		(ScrollPageDown Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+>		(ScrollTrack Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+> 		(ScrollRelease Horizontal sp) 		-> changeHorizontal sp (f, t, g)
+> 		(ScrollTop Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollBottom Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollLineUp Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollLineDown Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollPageUp Vertical sp) 		-> changeVertical sp (f, t, g)
+> 		(ScrollPageDown Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollTrack Vertical sp) 	 	-> changeVertical sp (f, t, g)
+> 		(ScrollRelease Vertical sp) 	 	-> changeVertical sp (f, t, g)
+
+
+> changeHorizontal sp (f, t, g) =
+>	let p = scrolledPos g
+>	in (f, t, g {scrolledPos=pt sp (pointY p)})
+
+> changeVertical sp (f, t, g) =
+>	let p = scrolledPos g
+>	in (f, t, g {scrolledPos=pt (pointX p) sp})
+
+> --BRtoView
+> viewSW :: BRtoView ModelType (ScrolledWindow () -> DC () -> Rect -> IO ())
+> viewSW (f, t, g) sw dc viewarea = 
+>	do changeSWSize g sw
+>	   changeMouseCursor g sw
+>	   drawShapeTree g dc
+
+> viewTxtLabelEditor :: BRtoView ModelType (String, GraInfo)
+> viewTxtLabelEditor (f, t, g) = 
+>		let mod = shapeTreeModule $ shapeTree g
+>		    Module gi _ _ _ _ = mod
+>		    (s, origG) = snd $ getLabelEditorAttr ("", gi) False mod
+>		    sp = scrolledPos g
+>		    origP = shapePosition origG
+>		    --s1 = (show origP) ++ "--" ++ (show sp)
+>		    virtuG = origG {shapePosition = pt (pointX origP - pointX sp) (pointY origP - pointY sp)}
+>		in (s, virtuG)
+
+> -- ================================================================
+
+> type PrevSel = Bool -- if one shape is already selected, no need to check further in the tree
+> type CurrSel = Bool
+
+> data SelLabelEditMode = LabelTextEditMode | DeselectLabelMode deriving (Eq)
+
+> class ShapeSelection a where
+>	selectShape :: DrawMode -> Point -> PrevSel -> a -> (CurrSel, a)
+>	editSelectedLabel :: SelLabelEditMode -> TextualForm -> PrevSel -> a -> (CurrSel, a)
+>	getLabelEditorAttr :: (String, GraInfo) -> PrevSel -> a -> (CurrSel, (String, GraInfo)) 
+> 	getSelArg :: DrawMode -> Point -> a -> Int
+> 	getSelArg d p g = 0 -- if drawmode = only Join2 and a = FunBox?? calculate -- not defined
+
+> --Get the first selected label only if first argument is True ie anything slected in the list
+> filterLblEdtAttrList :: (String, GraInfo) -> PrevSel -> [(String, GraInfo)] -> (CurrSel, (String, GraInfo))
+> filterLblEdtAttrList attrVal True lst = 
+>	let lst1 = [(s, g) | (s, g) <- lst, labelEditMode g] 
+>	in (True, lst1 !! 0)
+> filterLblEdtAttrList attrVal False lst = 
+>	(False, attrVal)
+
+> instance ShapeSelection (Module GraInfo) where
+>	selectShape d p True mod = (True, mod)
+>	selectShape d p False (Module g mh mp imp decl) = 
+>		let (ps1, mh1) 		= selectShape d p False mh
+>	            --(mp1, ps2) = selectShape ps1 d p mp 
+>		    --(imp1, ps3) = selectShape ps2 d p imp
+>		    (ps4, decl1) 	= mapAccumL (selectShape d p) ps1 decl
+>		in (ps4, (Module g mh1 mp imp decl1))--mp1 imp1 decl1 ps4)
+
+>	editSelectedLabel lm txt True mod = (True, mod)
+>	editSelectedLabel lm txt False (Module g mh mp imp decl) = 
+>	   	let (ps1, mh1) 		= editSelectedLabel lm txt False mh
+>	            --(mp1, ps2) <- selectShape ps1 d p mp 
+>	            --(imp1, ps3) <- selectShape ps2 d p imp
+>	            (ps4, decl1) 	= mapAccumL (editSelectedLabel lm txt) ps1 decl
+>		in (ps4, (Module g mh1 mp imp decl1))--mp1 imp1 decl1 ps4)
+
+>	getLabelEditorAttr attrVal True mod = (True, attrVal)
+>	getLabelEditorAttr attrVal False (Module g mh mp imp decl) = 
+>	   	let (ps1, attrVal1) = getLabelEditorAttr attrVal  False mh
+>	            --(mp1, ps2) <- selectShape ps1 d p mp 
+>	            --(imp1, ps3) <- selectShape ps2 d p imp
+>		    (ps4, attrVal4) = getLbLAttrDecl     attrVal1 ps1   decl
+>		in (ps4, attrVal4)
+>		where
+>		getLbLAttrDecl attrVal True  decl =  (True, attrVal)
+>		getLbLAttrDecl attrVal False decl =  
+>			let (ps4, lstAttrVal) = mapAccumL (getLabelEditorAttr attrVal) False decl
+>			in filterLblEdtAttrList attrVal ps4 lstAttrVal
+> --test True attrVal = 
+
+
+> instance ShapeSelection (Maybe (ModuleHead GraInfo)) where
+>	selectShape d p True  mh = (True, mh)
+>	selectShape d p False mh = 
+>	   case mh of
+>		Nothing 			-> checkModuleHeadDefault d p
+>		Just (ModuleHead g mn wt el)	-> 
+>			let (ps1, mn1) = selectShape d p False mn
+>			--(wt1, ps2) = selectShape ps1 d p wt 
+>			--(el1, ps3) = selectShape ps2 d p el
+>			in (ps1, Just (ModuleHead g mn1 wt el)::(Maybe (ModuleHead GraInfo)))--wt1 el1), ps3)
+
+>	editSelectedLabel lm txt True  mh = (True, mh)
+>	editSelectedLabel lm txt False mh =
+>	   case mh of
+>		Nothing 			-> (False, mh)
+>		Just (ModuleHead g mn wt el)	-> 
+>			let (ps1, mn1) = editSelectedLabel lm txt False mn
+>			--(wt1, ps2) = selectShape ps1 d p wt 
+>			--(el1, ps3) = selectShape ps2 d p el
+>			in (ps1, Just (ModuleHead g mn1 wt el)::(Maybe (ModuleHead GraInfo)))--wt1 el1), ps3)
+
+>	getLabelEditorAttr attrVal True  mh = (True, attrVal)
+>	getLabelEditorAttr attrVal ps mh =
+>	   case mh of
+>		Nothing 			-> (False, attrVal)
+>		Just (ModuleHead g mn wt el)	-> 
+>			let (ps1, attrVal1) = getLabelEditorAttr attrVal ps mn
+>			--(wt1, ps2) = selectShape ps1 d p wt 
+>			--(el1, ps3) = selectShape ps2 d p el
+>			in (ps1, attrVal1)--wt1 el1), ps3)
+>			-- where getLblEdtWt True / False, getLblEdtEl True / False
+
+> checkModuleHeadDefault :: DrawMode -> Point -> (CurrSel, Maybe (ModuleHead GraInfo))
+> checkModuleHeadDefault d p
+>	| editMode == True = (True, Just (ModuleHead l (ModuleName l "") Nothing Nothing))
+>	| otherwise        = (False, Nothing)
+>	where
+>	shpPt = pt 0 0
+>       shpSz = sz 300 30
+>	editMode = (insideRectArea p shpPt shpSz) && (d == ModeLabelEdit)
+>	l = defaultGraInfo {
+>		shapePosition = shpPt, 
+>		shapeSize = shpSz, 
+>	        labelEditMode = True
+>		}
+
+> instance ShapeSelection (ModuleName GraInfo) where
+>	selectShape d p True  mn 		= (True, mn)
+>	selectShape d p False (ModuleName g n) 	
+>		| (insideShape p g) = 
+>		   	let g1 = selectShapeAttr d (deselectAllSelAttr g) (getSelArg d p (ModuleName g n))
+>			in (True, ModuleName g1 n)
+>		| otherwise 	=
+>			(False, (ModuleName g n))
+
+>	editSelectedLabel lm txt True mn 		= (True, mn)
+>	editSelectedLabel lm txt False (ModuleName g n) 
+>	   	| (labelEditMode g) =
+>		     if (lm == LabelTextEditMode) 
+>		     then
+>			 let n1 = originalText txt
+>			     g1 = g {labelInsertionPoint = textInsertionPoint txt}
+>			 in (True, ModuleName g1 n1)
+>		     else		 
+>			 (True, ModuleName g {labelEditMode = False} n)
+>	        | otherwise 	    = (False, (ModuleName g n))
+
+>	getLabelEditorAttr attrVal True  mn 		  = (True, attrVal)
+>	getLabelEditorAttr attrVal False (ModuleName g n) 
+>		| (labelEditMode g) = (True, (n, g))
+>	        | otherwise	    = (False, attrVal)
+
+> instance ShapeSelection (Decl GraInfo) where
+>	selectShape d p ps decl = 
+>	   case decl of
+>		FunBind _ _ -> selectShapeFunBind d p ps decl
+
+>	editSelectedLabel lm txt ps decl = 
+>	   case decl of
+>		FunBind _ _ -> editSelectedLabelFunBind lm txt ps decl
+
+>	getLabelEditorAttr (s, gi) ps decl = 
+>	   case decl of
+>		FunBind _ _ -> getLabelEditorAttrFunBind (s, gi)  ps decl
+
+> selectShapeFunBind d p ps (FunBind g mtch) = 
+>	let (ps1, mtch1) = mapAccumL (selectShape d p) ps mtch
+>	in (ps1, FunBind g mtch1)
+
+> editSelectedLabelFunBind lm txt ps (FunBind g mtch) = 
+>	let (ps1, mtch1) = mapAccumL (editSelectedLabel lm txt) ps mtch
+>	in (ps1, FunBind g mtch1)
+
+> getLabelEditorAttrFunBind attrVal ps (FunBind _ mtch) = 
+>	let (ps1, mtch1) = mapAccumL (getLabelEditorAttr attrVal) ps mtch
+>	in filterLblEdtAttrList attrVal ps1 mtch1
+
+> instance ShapeSelection (Match GraInfo) where
+>	selectShape d p True  mtch = (True, mtch)
+>	selectShape d p False (Match g i pr r b) = 
+>	   let (ps1, i1) = selectShape d p False i
+>	       (ps2, pr1) = mapAccumL (selectShape d p) ps1 pr
+>	       (ps3, r1) = selectShape d p ps2 r
+>	   in (ps3, Match g i1 pr1 r1 b)
+
+>	editSelectedLabel lm txt True  mtch 		 = (True, mtch)
+>	editSelectedLabel lm txt False (Match g i p r b) = 
+>	   let (ps1, i1) = editSelectedLabel lm txt False i
+> 	       (ps2, p1) = mapAccumL (editSelectedLabel lm txt) ps1 p
+>	       (ps3, r1) = editSelectedLabel lm txt ps2 r
+>	            --(imp1, ps3) <- selectShape ps2 d p imp
+>	            --(decl1, ps4) <- selectShape ps3 d p decl
+>	   in (ps3, Match g i1 p1 r1 b)--mp1 imp1 decl1 ps4)
+
+>	getLabelEditorAttr attrVal True  mtch 		   = (True, attrVal)
+>	getLabelEditorAttr attrVal False (Match g i p r b) =
+>	   let (ps1, attrVal1) = getLabelEditorAttr attrVal False i
+>	       (ps2, attrVal2) = getLbLAttrPat attrVal1 ps1 p
+>	       (ps3, attrVal3) = getLbLAttrRhs attrVal2 ps2 r
+>		-- 3,4 r, b
+>	   in (ps3, attrVal3)
+>	   where
+>	   getLbLAttrPat attrVal True  p =  (True, attrVal)
+>	   getLbLAttrPat attrVal False p =  
+>		   let (ps4, lstAttrVal) = mapAccumL (getLabelEditorAttr attrVal) False p
+>		   in filterLblEdtAttrList attrVal ps4 lstAttrVal
+>	   getLbLAttrRhs attrVal True  r =  (True, attrVal)
+>	   getLbLAttrRhs attrVal False r =  
+>		   getLabelEditorAttr attrVal False r
+
+> instance ShapeSelection (Name GraInfo) where
+>	selectShape d p True  idnt 	  = (True, idnt)
+>	selectShape d p False (Ident g n)  
+>	   | (insideShape p g) 	=
+>		let g1 = selectShapeAttr d (deselectAllSelAttr g) 0
+>		in (True, Ident g1 n)
+>	   | otherwise	 	= 
+>		(False, (Ident g n))
+
+
+>	editSelectedLabel lm txt True  idnt 	   = (True, idnt)
+>	editSelectedLabel lm txt False (Ident g n) 
+>	   | (labelEditMode g) 	=
+>		if (lm == LabelTextEditMode)
+>		then	
+>			let n1 = originalText txt
+>			    g1 = g {labelInsertionPoint = textInsertionPoint txt}
+>			in (True, Ident g1 n1)
+>		else	
+>			(True, Ident g {labelEditMode = False} n)
+>	   | otherwise		=
+>		(False, (Ident g n))
+
+>	getLabelEditorAttr attrVal True  idnt 	     = (True, attrVal)
+>	getLabelEditorAttr attrVal False (Ident g n) 
+>	   | (labelEditMode g) = (True, (n, g))
+>	   | otherwise 	       = (False, attrVal)
+
+> instance ShapeSelection (Pat GraInfo) where
+>	selectShape d p True  pat = (True, pat)
+>	selectShape d p False (PVar g0 (Ident g n))
+>	   | (insideShape p g)	=	
+>		let g1 = selectShapeAttr d (deselectAllSelAttr g) 0
+>		in (True, PVar g0 (Ident g1 n))
+>	   | otherwise 		=
+>		(False, (PVar g0 (Ident g n)))
+>	selectShape d p False (PWildCard g) 
+>	   | (insideShape p g)	=	
+>		let g1 = selectShapeAttr d (deselectAllSelAttr g) 0
+>		in (True, PWildCard g1)
+>	   | otherwise 		= (False, PWildCard g)
+>	selectShape d p False (PList g lstP) = 
+>	   let (ps1, lstP1) = mapAccumL (selectShape d p) False lstP
+>	   in (ps1, (PList g lstP1))
+>	selectShape d p False (PInfixApp g p1 q1 p2) = 
+>	   let (ps1, p11) = selectShape d p False p1
+>	       (ps2, p21) = selectShape d p ps1 p2
+>	   in (ps2, PInfixApp g p11 q1 p21)
+>	selectShape d p False (PParen g p1) = 
+>	   let (ps1, p11) = selectShape d p False p1
+>	   in (ps1, PParen g p11)
+>	selectShape d p False (PLit g0 (Int g i s)) 
+>	   | (insideShape p g)	=	
+>		let g1 = selectShapeAttr d (deselectAllSelAttr g) 0
+>		in (True, PLit g0 (Int g1 i s))
+>	   | otherwise 		= (False, PLit g0 (Int g i s))
+
+
+> -- editSelectedLabel | (labelEditMode g) = -- could be together
+> --		if (lm == LabelTextEditMode)?? answer NO bacz of LabelTextEditMode
+
+>	editSelectedLabel lm txt True  pat 		  = (True, pat)
+>	editSelectedLabel lm txt False (PVar g0 (Ident g n) )
+>	   | (labelEditMode g) =
+>		if (lm == LabelTextEditMode)
+>		then	
+>			let n1 = originalText txt
+>			    g1 = g {labelInsertionPoint = textInsertionPoint txt}
+>			in (True, PVar g0 (Ident g1 n1))
+>		else	
+>			let g1 = g {labelEditMode = False}
+>			in (True, PVar g0 (Ident g1 n))
+>	   | otherwise 		=
+>		(False, PVar g0 (Ident g n))
+>	editSelectedLabel lm txt False (PList g lstP) = 
+>	   let (ps1, lstP1) = mapAccumL (editSelectedLabel lm txt) False lstP
+>	   in (ps1, (PList g lstP1))
+>	editSelectedLabel lm txt False (PWildCard g) = (False, PWildCard g)
+>	editSelectedLabel lm txt False (PInfixApp g p1 q1 p2) = 
+>	   let (ps1, p11) = editSelectedLabel lm txt False p1
+>	       (ps2, p21) = editSelectedLabel lm txt ps1 p2
+>	   in (ps2, (PInfixApp g p11 q1 p21))
+>	editSelectedLabel lm txt False (PParen g p) = 
+>	   let (ps1, p1) = editSelectedLabel lm txt False p
+>	   in (ps1, (PParen g p))
+>	editSelectedLabel lm txt False (PLit g0 (Int g i s)) 
+>	   | (labelEditMode g) =
+>		if (lm == LabelTextEditMode)
+>		then	
+>			let n1 = originalText txt
+>			    g1 = g {labelInsertionPoint = textInsertionPoint txt}
+>			    n1Int = read n1 :: Integer
+>			in (True, (PLit g0 (Int g1 n1Int n1)))
+>		else	
+>			let g1 = g {labelEditMode = False}
+>			in (True, (PLit g0 (Int g1 i s)))
+>	   | otherwise 		=
+>		(False, PLit g0 (Int g i s))
+
+>	getLabelEditorAttr attrVal True  pat = (True, attrVal)
+>	getLabelEditorAttr attrVal False (PVar g0 (Ident g n)) 
+>	   | (labelEditMode g) = (True, (n, g))
+>	   | otherwise	       = (False, attrVal)
+>	getLabelEditorAttr attrVal False (PWildCard g) = (False, attrVal)
+>	getLabelEditorAttr attrVal False (PList _ lstP) = 
+>			let (ps1, lstAttrVal) = mapAccumL (getLabelEditorAttr attrVal) False lstP
+>			in filterLblEdtAttrList attrVal ps1 lstAttrVal
+>	getLabelEditorAttr attrVal False (PInfixApp _ _ _ _) = (False, attrVal)
+>	getLabelEditorAttr attrVal False (PParen _ _) = (False, attrVal)
+>	getLabelEditorAttr attrVal False (PLit _ (Int g i s)) 
+>	   | (labelEditMode g) = (True, (s, g))
+>	   | otherwise	       = (False, attrVal)
+
+
+> instance ShapeSelection (Rhs GraInfo) where
+>	selectShape d p True  rhs = (True, rhs)
+>	selectShape d p False (UnGuardedRhs g v) =
+>	   let (ps1, v1) = selectShape d p False v
+>	   in (ps1, UnGuardedRhs g v1)
+
+> -- editSelectedLabel | (labelEditMode g) = -- could be together
+> --		if (lm == LabelTextEditMode)?? answer NO bacz of LabelTextEditMode
+
+>	editSelectedLabel lm txt True  rhs = (True, rhs)
+>	editSelectedLabel lm txt False (UnGuardedRhs g v) =
+>	   let (ps1, v1) = editSelectedLabel lm txt False v
+>	   in (ps1, UnGuardedRhs g v1)
+
+>	getLabelEditorAttr attrVal True  rhs = (True, attrVal)
+>	getLabelEditorAttr attrVal False (UnGuardedRhs g v) = 
+>	   getLabelEditorAttr attrVal False v
+
+> selectShapeAttrInputOutPut :: DrawMode -> GraInfo -> Int -> Bool -> GraInfo
+> selectShapeAttrInputOutPut ModeCallFunction g input output = g {argSelected = input,
+>					outputSelected = output}
+> selectShapeAttrInputOutPut _ g _ _ = g 
+
+> insideShapeInpOut :: Point -> GraInfo -> (Int, Bool)
+> insideShapeInpOut p g = let shpPtInp = shapePosition g
+>			      shpPtOut = addToPoint shpPtInp (sz 0 45)
+>           	              shpSz    = sz (szW $ shapeSize g) 15
+>			      selInp   = insideRectArea p shpPtInp shpSz
+>			      selOut   = insideRectArea p shpPtOut shpSz
+>		          in (fromEnum selInp, selOut)
+
+> instance ShapeSelection (Exp GraInfo) where
+>	selectShape d p True  e = (True, e)
+>	selectShape d p False (App g1 eOne eTwo) =
+>	   let (ps1, eOne1) = selectShape d p False eOne
+>	       (ps2, eTwo1) = selectShape d p ps1 eTwo
+>	   in (ps2, App g1 eOne1 eTwo1)
+>	selectShape d p False (Var g (UnQual g1 (Ident g2 s)))
+>	   | (insideShape p g2)	=	
+>		let g3    = selectShapeAttr d (deselectAllSelAttr g2) 0
+>		    (i,o) = insideShapeInpOut p g1
+>		    g4    = selectShapeAttrInputOutPut d g1 i o
+>		in (True, Var g (UnQual g4 (Ident g3 s)))
+>	   | (insideShape p g1)	=	
+>		let g3    = selectShapeAttr d (deselectAllSelAttr g1) 0
+>		    (i,o) = insideShapeInpOut p g1
+>		    g4    = selectShapeAttrInputOutPut d g3 i o
+>		in (True, Var g (UnQual g4 (Ident g2 s)))
+>	   | otherwise 		=
+>		(False, (Var (deselectAllSelAttr g) (UnQual (deselectAllSelAttr g1) (Ident (deselectAllSelAttr g2) s))))
+>	selectShape d p False (Lit g (String g1 s u))
+>	   | (insideShape p g1)	=	
+>		let g2 = selectShapeAttr d (deselectAllSelAttr g1) 0
+>		in (True, (Lit g (String g2 s u)))
+>	   | otherwise 		=
+>		(False, (Lit g (String g1 s u)))
+>	selectShape d p False (Paren g e) = 
+>	   let (ps1, e1) = selectShape d p False e
+>	   in (ps1, Paren g e1)--mp1 imp1 decl1 ps4)
+
+> -- editSelectedLabel | (labelEditMode g) = -- could be together
+> --		if (lm == LabelTextEditMode)?? answer NO bacz of LabelTextEditMode
+
+>	editSelectedLabel lm txt True  e 		  = (True, e)
+>	editSelectedLabel lm txt False (App g1 eOne eTwo) = 
+>	   let (ps1, eOne1) = editSelectedLabel lm txt False eOne
+>	       (ps2, eTwo1) = editSelectedLabel lm txt ps1 eTwo
+>	   in (ps2, App g1 eOne1 eTwo1)--mp1 imp1 decl1 ps4)
+>	editSelectedLabel lm txt False (Var g (UnQual g1 (Ident g2 s)))
+>	   | (labelEditMode g2) =
+>		if (lm == LabelTextEditMode)
+>		then	
+>			let s1 = originalText txt
+>			    g3 = g2 {labelInsertionPoint = textInsertionPoint txt}
+>			in (True, (Var g (UnQual g1 (Ident g3 s1))))
+>		else	
+>			let g3 = g2 {labelEditMode = False}
+>			in (True, (Var g (UnQual g1 (Ident g3 s))))
+>	   | otherwise 		=
+>		(False, (Var g (UnQual g1 (Ident g2 s))))
+>	editSelectedLabel lm txt False (Lit g (String g1 s u))
+>	   | (labelEditMode g1) =
+>		if (lm == LabelTextEditMode)
+>		then	
+>			let s1 = originalText txt
+>			    g2 = g1 {labelInsertionPoint = textInsertionPoint txt}
+>			in (True, (Lit g (String g2 s1 u)))
+>		else	
+>			let g2 = g1 {labelEditMode = False}
+>			in (True, (Lit g (String g2 s u)))
+>	   | otherwise 		=
+>		(False, (Lit g (String g1 s u)))
+>	editSelectedLabel lm txt False (Paren g e) = 
+>	   let (ps1, e1) = editSelectedLabel lm txt False e
+>	   in (ps1, Paren g e1)--mp1 imp1 decl1 ps4)
+
+>	getLabelEditorAttr attrVal True  e = (True, attrVal)
+>	getLabelEditorAttr attrVal False (App g1 eOne eTwo) = 
+>	   let (ps1, attrVal1) = getLabelEditorAttr attrVal False eOne
+>	       (ps2, attrVal2) = getLbLAttrETwo attrVal1 ps1 eTwo
+>		-- 3,4 r, b
+>	   in (ps2, attrVal2)
+>	   where
+>	   getLbLAttrETwo attrVal True  eTwo =  (True, attrVal)
+>	   getLbLAttrETwo attrVal False eTwo =  getLabelEditorAttr attrVal False eTwo
+>	getLabelEditorAttr attrVal False (InfixApp gi eOne qop eTwo) = 
+>	   let (ps1, attrVal1) = getLabelEditorAttr attrVal False eOne
+>	       (ps2, attrVal2) = getLbLAttrETwo attrVal1 ps1 eTwo
+>	       (ps3, attrVal3) = getLbLAttrQOP attrVal2 ps1 qop
+>		-- 3,4 r, b
+>	   in (ps3, attrVal3)
+>	   where
+>	   getLbLAttrETwo attrVal True  eTwo =  (True, attrVal)
+>	   getLbLAttrETwo attrVal False eTwo =  getLabelEditorAttr attrVal False eTwo
+>	   getLbLAttrQOP attrVal True  qop =  (True, attrVal)
+>	   getLbLAttrQOP attrVal False qop =  getLabelEditorAttr attrVal False qop
+>	getLabelEditorAttr attrVal False (Var g (UnQual g1 (Ident g2 s)))
+>	   | (labelEditMode g2) = (True, (s, g2))
+>	   | otherwise	       = (False, attrVal)
+>	getLabelEditorAttr attrVal False (Lit g (String g1 s u))
+>	   | (labelEditMode g1) = (True, (s, g1))
+>	   | otherwise	       = (False, attrVal)
+>	getLabelEditorAttr attrVal False (Paren g e)
+>	   = getLabelEditorAttr attrVal False e
+
+> instance ShapeSelection (QOp GraInfo) where
+>	getLabelEditorAttr attrVal False (QVarOp g0 (UnQual g1 (Symbol g2 s)))
+>	   | (labelEditMode g2) = (True, (s, g2))
+>	   | otherwise	       = (False, attrVal)
+
+> deselectAllSelAttr :: GraInfo -> GraInfo
+> deselectAllSelAttr g = g { 
+>			selected = False,
+>			labelEditMode = False,
+>			argSelected = 0,
+>			outputSelected = False}
+
+> selectShapeAttr :: DrawMode -> GraInfo -> Int -> GraInfo
+> selectShapeAttr d g arg = case d of 
+>				ModeSelection -> g {selected = True}
+>				ModeLabelEdit -> g {labelEditMode = True}
+>				ModeJoinOne -> g {outputSelected = True}
+>				ModeJoinTwo -> g {argSelected = arg}
+>				_ -> g
+>				
+
+> insideShape :: Point -> GraInfo -> Bool
+> insideShape p g = let shpPt = shapePosition g
+>           	        shpSz = shapeSize g
+>		    in insideRectArea p shpPt shpSz
+
+> insideRectArea :: Point -> Point -> Size -> Bool
+> insideRectArea (Point x y) (Point x1 y1) (Size w h) = 
+>	(x > x1) && (x < (x1 + w)) && (y > y1) && (y < (y1 + h))
+
+
+
+> -- ===========================================tests
+> t = GraInfo {shapePosition = Point 0 0, shapeSize = sz 300 30, selected = True, labelEditMode = True, labelInsertionPoint = 0,
+>			    isMinimized = False,
+>			    argSelected = 0,
+>			    outputSelected = False,
+>			    mainOutput = False,
+>			    typeInfo = Nothing,
+>			    joinToChildNodes	= []}
+
+> testModGr = (ModuleGr testMod [])
+> testMod = Module t (Just (ModuleHead t (ModuleName t "n") Nothing Nothing)) [] [] []
+

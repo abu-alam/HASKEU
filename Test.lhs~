@@ -1,0 +1,44 @@
+> module Test where
+
+> import Graphics.UI.WX hiding (Event)
+> import Graphics.UI.WXCore hiding (Event)
+> import MVC
+> import MVC_WX
+> import Reactive.Banana hiding (Model)
+> import Reactive.Banana.WX
+
+> --import Language.Haskell.Exts.Annotated hiding (layout, style)
+> import Data.Bits --(.|.)
+> --import Data.Char (toLower)
+> --import Data.List hiding (union)
+> --import TestGUITextEditor
+> --import Reactive.Banana
+> --import Reactive.Banana.WX
+
+> --import Data.Char
+> --import Data.Maybe
+
+> gui nb txt1 lst1 btnCommit = 
+>     do
+> 	--Panel Text Editor
+> 	pnlTexual   <- panel  nb []
+
+>	sw <- scrolledWindow pnlTexual [bgcolor := white, scrollRate := sz 10 10, fullRepaintOnResize := False, style := wxHSCROLL .|. wxVSCROLL, virtualSize := sz 50000 50000]
+>	let v = view sw (\a b c -> br a b c) 5
+> 	--let c = controller sw [((getControllerSw  sw),(\a b -> brmouse a b))]
+>	return v
+
+
+> getControllerSw  sw = do
+>			n <- compile $ do 
+>				event1  sw mouse
+>			actuate n
+
+
+> br m dc viewarea
+>      = do 
+>	   drawRect dc (rect  (pt 10 30) (sz 50 20)) []
+
+> brmouse (MouseLeftDown p _) m = 5
+
+

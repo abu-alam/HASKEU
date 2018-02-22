@@ -1,0 +1,69 @@
+> module GUIGraphicalEditor where
+
+> import Graphics.UI.WX
+> import Graphics.UI.WXCore hiding (View)
+> import Data.Bits -- (.|.)
+> import Utils
+> import MVC
+> import MVC_WX
+> import BRGraphical
+
+> graphicalEditorIconPath :: String
+> graphicalEditorIconPath = "./resources/images/guiGraphical/"
+
+> gui :: Notebook () -> IO (TabPage, [Model ModelType -> View ViewType], [EventController (ModelType -> ModelType)])
+> gui win =
+>          do
+> 	     pnlWin   <- panel  win []
+>	     sw <- scrolledWindow pnlWin [bgcolor := white, scrollRate := sz 10 10, 
+>                                         fullRepaintOnResize := False, 
+>                                         style := wxHSCROLL .|. wxVSCROLL, 
+>                                         virtualSize := sz 50000 50000]
+>	     btnSelection <- bitmapButton pnlWin [text := "Sel", tooltip := "Selection", 
+>				picture := getFilePath graphicalEditorIconPath "selection.png", clientSize := sz 40 40]
+>            btnAddNewFunction <- bitmapButton pnlWin [text := "Fn", tooltip := "Add New Function", 
+>				picture := getFilePath graphicalEditorIconPath "addNewFunction.png", clientSize := sz 40 40]
+>            btnFunctionPattern <- bitmapButton pnlWin [text := "Pat", tooltip := "Add Function Pattern", 
+>				picture := getFilePath graphicalEditorIconPath "pattern.png", clientSize := sz 40 40]
+>            btnCallFunction <- bitmapButton pnlWin [text := "F(x)", tooltip := "Call a Function", 
+>				picture := getFilePath graphicalEditorIconPath "functionCall.png", clientSize := sz 40 40]
+> 	     btnOperator <- bitmapButton pnlWin [text := "Op", tooltip := "Call Operator", 
+>				picture := getFilePath graphicalEditorIconPath "operatorCall.png", clientSize := sz 40 40]
+>	     btnConstTant <- bitmapButton pnlWin [text := "Cnst", tooltip := "Add Constant", 
+>				picture := getFilePath graphicalEditorIconPath "constant.png", clientSize := sz 40 40]
+>            btnIfStmt <- bitmapButton pnlWin [text := "If-Then", tooltip := "Add IF-Then-Else Statement", 
+>				picture := getFilePath graphicalEditorIconPath "if_then.png", clientSize := sz 40 40, 
+>				on command := repaint sw]
+>	     btnCaseStmt <- bitmapButton pnlWin [text := "Case", tooltip := "Add CASE Statement", 
+>				picture := getFilePath graphicalEditorIconPath "case.png", clientSize := sz 40 40]
+>	     btnJoin <- bitmapButton pnlWin [text := "Join", tooltip := "Joining", 
+>				picture := getFilePath graphicalEditorIconPath "join.png", clientSize := sz 40 40]
+>	     btnDelete <- bitmapButton pnlWin [text := "Del", tooltip := "Delete", 
+>				picture := getFilePath graphicalEditorIconPath "delete.png", clientSize := sz 40 40
+>				, on command := repaint sw]
+	
+>	     lstError  <- singleListBox pnlWin []
+
+>	     let tabGraEditor = tab "Graphical View" $ container pnlWin $ margin 10 $ column 5 
+>				[row 0 [widget btnSelection, widget btnAddNewFunction, widget btnFunctionPattern, 
+>					widget btnCallFunction, widget btnOperator, 
+>				 	widget btnConstTant, widget btnIfStmt, widget btnCaseStmt,
+>				 	widget btnJoin, hstretch $ widget btnDelete],
+>			         row 1 [fill $ minsize (sz 470 320) $ widget sw],
+>			         row 2 [fill $ label "Error Messages"],
+>			         row 3 [fill $ widget lstError]]
+>	     -- View-Controller------------------------------------------------------
+>	     let cSwMLU = controller (sw, MouseLeftBtnUp) mouseLeftUpSW
+>	     let cSwMLD = controller (sw, MouseLeftBtnDown) mouseLeftDownSW
+>	     let cSwMLDR = controller (sw, MouseLeftBtnDrag) mouseLeftDragSW
+>	     let cSwKD = controller (sw, KeyboardDown) keyboardSW
+>	     let lstC = [cSwMLU, cSwMLD, cSwMLDR, cSwKD]
+
+>	     let vSW = (\m -> ((view sw sinkSw m)::View ()))
+>	     -- View-Controller------------------------------------------------------
+>  	     return (tabGraEditor, [vSW], lstC)
+
+
+
+
+

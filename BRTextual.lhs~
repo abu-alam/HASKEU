@@ -1,0 +1,39 @@
+> module BRTextual where
+
+> import MVC
+> import MVC_WX
+> import ModelType
+> import BusinessRule
+> import ConvertFromTextual
+
+> import Language.Haskell.Exts.Annotated hiding (layout, style)
+
+> data BRTxtlCtlr = KB_UP_TXT_Editor |
+>		    MSE_DBL_CLK_LST_Error
+
+> instance BRController BRTxtlCtlr TextualForm where
+> 	brController KB_UP_TXT_Editor = kbUpTxtEditor
+
+> --BRtoModel
+> -- All BRtoModel should have convertFromTextual for synchronization
+> kbUpTxtEditor :: BRtoModel TextualForm ModelType
+> kbUpTxtEditor txt (f, t, g) = (f, txt, g)
+
+> --BRtoView
+> viewTxtEditor :: BRtoView ModelType TextualForm
+> viewTxtEditor (f, t, g) = t
+
+> sinkErrorList :: BRtoView ModelType [String]
+> sinkErrorList (f, t, g) = getErrorList t
+
+> getErrorList :: TextualForm -> [String]
+> getErrorList (TextualForm t i) = let pTree = parseFileContentsWithComments defaultParseMode t
+>				   in case pTree of
+>					ParseOk (mod,comments) -> [""]
+>					err 		       -> [show err]
+
+> map1 :: Int -> (Int -> Int -> Int) -> Int
+> map1 f c = 5
+
+
+

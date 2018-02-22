@@ -1,0 +1,4 @@
+> module TypeManagement where
+
+> manageType :: ModelType -> ModelType
+> manageType m =  unsafePerformIO $ return m

@@ -1,0 +1,47 @@
+> module GUITextEditor where
+
+> import Graphics.UI.WX
+> import Graphics.UI.WXCore hiding (View)
+> import Utils
+> import MVC
+> import MVC_WX
+> import BRTextual
+
+> textualEditorIconPath :: String
+> textualEditorIconPath = "./resources/images/guiTextual/"
+
+> gui :: Notebook () -> IO (TabPage, [Model ModelType -> View ViewType], [EventController (ModelType -> ModelType)])
+> gui win =
+>          do
+>	     pnlWin <- panel  win []
+        
+>	     btnCut 	<- bitmapButton pnlWin [text := "Cut", tooltip := "Cut", 
+>			picture := getFilePath textualEditorIconPath "cut01.png", clientSize := sz 40 40]
+>	     btnCopy 	<- bitmapButton pnlWin [text := "Copy", tooltip := "Copy", 
+>			picture := getFilePath textualEditorIconPath "copy01.png", clientSize := sz 40 40]
+>	     btnPaste 	<- bitmapButton pnlWin [text := "Paste", tooltip := "Paste", 
+>			picture := getFilePath textualEditorIconPath "paste01.png", clientSize := sz 40 40]
+>	     btnFind 	<- bitmapButton pnlWin [text := "Find", tooltip := "Find", 
+>			picture := getFilePath textualEditorIconPath "find01.png", clientSize := sz 40 40]
+>	     btnReplace <- bitmapButton pnlWin [text := "Replace", tooltip := "Replace", 
+>			picture := getFilePath textualEditorIconPath "replace01.png", clientSize := sz 40 40]
+
+>            txtEditor  <- textCtrl pnlWin [font := fontFixed, text := "", on change := repaint btnReplace]
+>	     lstError  	<- singleListBox pnlWin []
+
+>	     let tabTextEditor = tab "Textual View" $ container pnlWin $ margin 10 $ column 5 
+>				 [row 0 [widget btnCut, widget btnCopy, 
+>					 widget btnPaste, widget btnFind, hstretch $ widget btnReplace],
+>				  row 1 [fill $ minsize (sz 470 320) $ widget txtEditor],
+>				  row 2 [fill $ label "Error Messages"],
+>				  row 3 [fill $ widget lstError]]
+
+>            focusOn txtEditor
+
+>	     -- View-Controller------------------------------------------------------
+>	     let cTxtKU = controller (txtEditor, KeyboardUp) textEditorChanged
+
+>	     let vTxt = (\m -> ((view txtEditor sinkTextEditor m)::View ViewType))
+>	     -- View-Controller------------------------------------------------------
+>	     return (tabTextEditor, [vTxt], [cTxtKU])
+

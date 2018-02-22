@@ -1,0 +1,4 @@
+> module ShapeTree where
+>
+> type Graphical = Int
+

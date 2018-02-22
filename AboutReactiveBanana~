@@ -1,0 +1,194 @@
+
+reactive-banana-0.4.0.0: Small but solid library for functional reactive programming (FRP).
+
+Reactive.Banana.Incremental
+
+Contents
+
+    * Why a third type Discrete?
+    * Discrete time-varying values 
+
+Synopsis
+
+    * data Discrete f a
+    * initial :: Discrete f a -> a
+    * changes :: Discrete f a -> Event f a
+    * value :: Discrete f a -> Behavior f a
+    * stepperD :: FRP f => a -> Event f a -> Discrete f a
+    * accumD :: FRP f => a -> Event f (a -> a) -> Discrete f a
+    * applyD :: FRP f => Discrete f (a -> b) -> Event f a -> Event f b
+
+Why a third type Discrete?
+
+In an ideal world, users of functional reactive programming would only need to use the notions of Behavior and Event, the first corresponding to value that vary in time and the second corresponding to a stream of event ocurrences.
+
+However, there is the problem of incremental updates. Ideally, users would describe, say, the value of a GUI text field as a Behavior and the reactive-banana implementation would figure out how to map this onto the screen without needless redrawing. In other words, the screen should only be updated when the behavior changes.
+
+While this would be easy to implement in simple cases, it may not always suit the user; there are many different ways of implementing incremental computations. But I don't know a unified theory for them, so I have decided that the reactive-banana will give explicit control over updates to the user in the form of specialized data types like Discrete, and shall not attempt to bake experimental optimizations into the Behavior type.
+
+To sum it up:
+
+    * You get explicit control over updates (the changes function),
+    * but you need to learn a third data type Discrete, which almost duplicates the Behavior type.
+    * Even though the type Behavior is more fundamental, you will probably use Discrete more often. 
+
+That said, Discrete is not a new primitive type, but built from exising types and combinators; you are encouraged to look at the source code.
+
+If you are an FRP implementor, I encourage you to find a better solution. But if you are a user, you may want to accept the trade-off for now.
+Discrete time-varying values
+
+data Discrete f a Source
+
+Like Behavior, the type Discrete denotes a value that varies in time. However, unlike Behavior, it also provides a stream of events that indicate when the value has changed. In other words, we can now observe updates.
+
+Instances
+FRP f => Functor (Discrete f)	
+
+Functor instance
+FRP f => Applicative (Discrete f)	
+
+Applicative instance
+
+initial :: Discrete f a -> aSource
+
+Initial value.
+
+changes :: Discrete f a -> Event f aSource
+
+Event that records when the value changes. Simultaneous events may be pruned for efficiency reasons.
+
+value :: Discrete f a -> Behavior f aSource
+
+Behavior corresponding to the value. It is always true that
+
+ value x = stepper (initial x) (changes x)
+
+stepperD :: FRP f => a -> Event f a -> Discrete f aSource
+
+Construct a discrete time-varying value from an initial value and a stream of new values.
+
+accumD :: FRP f => a -> Event f (a -> a) -> Discrete f aSource
+
+Accumulate a stream of events into a discrete time-varying value.
+
+applyD :: FRP f => Discrete f (a -> b) -> Event f a -> Event f bSource
+
+Apply a discrete time-varying value to a stream of events.
+
+ applyD = apply . value
+
+Produced by Haddock version 2.9.2
+
+
+
+
+
+===========================================================
+
+data NetworkDescription t a
+
+Monad for describing event networks.
+
+The NetworkDescription monad is an instance of MonadIO, so IO is allowed inside.
+
+Note: The phantom type t prevents you from smuggling values of types Event or Behavior outside the NetworkDescription monad.
+
+Instances
+Monad (NetworkDescription t)	 
+Functor (NetworkDescription t)	 
+MonadFix (NetworkDescription t)	 
+Applicative (NetworkDescription t)	 
+MonadIO (NetworkDescription t)
+
+{-$build
+
+    After having read all about 'Event's and 'Behavior's,
+    you want to hook them up to an existing event-based framework,
+    like @wxHaskell@ or @Gtk2Hs@.
+    How do you do that?
+
+    This "Reactive.Banana.Implementation" module allows you to obtain /input/ events
+    from external sources
+    and it allows you perform /output/ in reaction to events.
+    
+    In constrast, the functions from "Reactive.Banana.Model" allow you 
+    to express the output events in terms of the input events.
+    This expression is called an /event graph/.
+    
+    An /event network/ is an event graph together with inputs and outputs.
+    To build an event network,
+    describe the inputs, outputs and event graph in the 'NetworkDescription' monad 
+    and use the 'compile' function to obtain an event network from that.
+
+    To /activate/ an event network, use the 'actuate' function.
+    The network will register its input event handlers and start producing output.
+
+    A typical setup looks like this:
+    
+> main = do
+>   -- initialize your GUI framework
+>   window <- newWindow
+>   ...
+>
+>   -- build the event network
+>   network <- compile $ do
+>       -- input: obtain  Event  from functions that register event handlers
+>       emouse    <- fromAddHandler $ registerMouseEvent window
+>       ekeyboard <- fromAddHandler $ registerKeyEvent window
+>       -- input: obtain  Behavior  from mutable data by polling
+>       btext     <- fromPoll       $ getTextValue editBox
+>       bdie      <- fromPoll       $ randomRIO (1,6)
+>
+>       -- express event graph
+>       let
+>           behavior1 = accumB ...
+>           ...
+>           event15 = union event13 event14
+>   
+>       -- output: animate some event occurences
+>       reactimate $ fmap print event15
+>       reactimate $ fmap drawCircle eventCircle
+>
+>   -- register handlers and start producing outputs
+>   actuate network
+
+    In short, you use 'fromAddHandler' to obtain /input/ events.
+    The library uses this to register event handlers
+    with your event-based framework.
+    
+    To animate /output/ events, use the 'reactimate' function.
+
+-}
+
+type AddHandler'  = (Channel, AddHandler Universe)
+type Preparations = ([Model.Event Flavor (IO ())], [AddHandler'], [IO ()])
+
+-- | Monad for describing event networks.
+-- 
+-- The 'NetworkDescription' monad is an instance of 'MonadIO',
+-- so 'IO' is allowed inside.
+-- 
+-- Note: It is forbidden to smuggle values of types 'Event' or 'Behavior'
+-- outside the 'NetworkDescription' monad. This shouldn't be possible by default,
+-- but you might get clever and use 'IORef' to circumvent this.
+-- Don't do that, it won't work and also has a 99,98% chance of 
+-- destroying the earth by summoning time-traveling zygohistomorphisms.
+newtype NetworkDescription a = Prepare { unPrepare :: RWST () Preparations Channel IO a }
+
+instance Monad (NetworkDescription) where
+    return  = Prepare . return
+    m >>= k = Prepare $ unPrepare m >>= unPrepare . k
+instance MonadIO (NetworkDescription) where
+    liftIO  = Prepare . liftIO
+instance Functor (NetworkDescription) where
+    fmap f  = Prepare . fmap f . unPrepare
+instance Applicative (NetworkDescription) where
+    pure    = Prepare . pure
+    f <*> a = Prepare $ unPrepare f <*> unPrepare a
+instance MonadFix (NetworkDescription) where
+    mfix f  = Prepare $ mfix (unPrepare . f)
+
+-- | Output.
+-- Execute the 'IO' action whenever the event occurs.
+reactimate :: Model.Event PushIO (IO ()) -> NetworkDescription ()
+reactimate e = Prepare $ tell ([e], [], [])

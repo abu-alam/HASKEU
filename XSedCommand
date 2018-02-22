@@ -1,0 +1,1 @@
+sed -i 's/gi/vi/g' *.lhs

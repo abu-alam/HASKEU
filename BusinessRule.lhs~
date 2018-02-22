@@ -1,0 +1,19 @@
+> module BusinessRule where
+
+> import ModelType
+> import MVC
+> import ConvertFromGraphical
+> import ConvertFromTextual
+
+> --b = BusinessRuleName, e = EventType, m = ModelType
+> -- Class for BusinessRule Controller to make sure synchronisation is ok
+> class BRController b e where
+> 	brController :: b -> BRtoModel e ModelType
+>	brCtlrSyncG2T :: b -> BRtoModel e ModelType
+>	brCtlrSyncT2G :: b -> BRtoModel e ModelType
+
+>	--Business rule controller + synchronise Graphical -> Textual
+>	brCtlrSyncG2T b e m = convertFromTextual $ convertFromGraphical (brController b e m) -- convertFromTextual should not be here, just for automatic layout
+>	brCtlrSyncT2G b e m = convertFromTextual (brController b e m)
+
+

@@ -1,0 +1,32 @@
+> module ErrorChecker where
+
+> import MVC
+> import ModelType
+
+> import Language.Haskell.Exts.Annotated hiding (layout, style)
+
+> getTextualErrors :: ModelType -> [ErrorMsg]
+> getTextualErrors (ModelType _ (TextualForm t _ _) _ _) = 
+>	let pTree = parseFileContentsWithComments defaultParseMode t
+>	in case pTree of
+>		ParseOk (mod,comments) -> getTypeErrorsTextualFormat mod
+>		err 		       -> [(convertSyntaxError err)]
+
+> getGraErrors :: ModelType -> [ErrorMsg]
+> getGraErrors (ModelType _ _ (GraphicalForm _ _ _) _ _) = 
+>	getTypeErrorsGraFormat mod
+
+> convertSyntaxError :: (ParseResult p) -> ErrorMsg
+> convertSyntaxError (ParseFailed (SrcLoc f l c) msg) =
+>	ErrorMsg l c msg
+
+> getTypeErrorsTextualFormat mod =
+>	getTypeErrors mod
+
+> getTypeErrorsGraFormat mod =
+>	getTypeErrors mod
+
+> getTypeErrors mod =
+>	[]
+
+

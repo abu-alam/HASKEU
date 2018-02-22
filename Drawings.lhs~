@@ -1,0 +1,791 @@
+> module Drawings where
+
+> import ModelType
+> import GraphicUtils
+> import SyntaxTreeManagement
+> import TreeErrorManagement
+
+> import Graphics.UI.WX
+> import Graphics.UI.WXCore hiding (Module)
+> import Language.Haskell.Exts.Annotated
+
+> import Data.Char
+
+> drawFnView :: SystemState -> (DC () -> IO ())
+> drawFnView (SystemState f t g ty h) dc = 
+>	do
+>	drawModuleLabel dc 
+>	drawHeaders dc "Globals" (pt 5 45)
+>	--drawButtons dc $ fnClButtons g
+>	drawLeftMargin dc 5000
+>	drawTopMargin dc 10000
+>	let Module  _ _ _ _ lstDecl = shapeTree g
+>	drawListItems dc (modeOfOperation g) lstDecl
+>	
+
+> drawModuleLabel :: DC () -> IO ()
+> drawModuleLabel dc =
+>	do
+>	drawText dc ("Module name") (pt 5 5) [fontSize := 8]
+
+> drawLclFnView :: SystemState -> (DC () -> IO ())
+> drawLclFnView m@(SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc "Locals" (pt 5 0)
+>	--drawButtons dc $ lclFnViewButtons g
+>	drawLeftMargin dc 5000
+>	let selMtch = getSelectedMatch m "selected"
+>	case selMtch of
+>		Just 	(Match _ _ _ _ (Just (BDecls _ lstDecl1))) 	-> drawListItems dc (modeOfOperation g) lstDecl1
+>	    	Nothing							-> return ()
+>	    	_							-> return ()
+
+> drawFnArgView :: SystemState -> (DC () -> IO ())
+> drawFnArgView m@(SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc "Pattern" (pt 5 0)
+>	--drawButtons dc $ patButtons g
+>	drawLeftMargin dc 5000
+>	drawTopMargin dc 5000
+
+>	let selMtch = getSelectedMatch m "selected"
+>	case selMtch of
+>		Just 	(Match _ _ lstPat _ _) 	-> drawListItems dc (modeOfOperation g) lstPat
+>	    	_				-> return ()
+
+> drawLclFnPatView :: SystemState -> (DC () -> IO ())
+> drawLclFnPatView m@(SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc "Local Pattern" (pt 5 0)
+>	--drawButtons dc $ lclFnArgButtons g
+>	drawLeftMargin dc 5000
+>	let selMtch = getSelectedLclMatch m "selected"
+>	case selMtch of
+>		Just 	(Match _ _ lstPat _ _) 	-> drawListItems dc (modeOfOperation g) lstPat
+>	    	_				-> return ()
+
+> drawFnBodyView :: SystemState -> (DC () -> IO ())
+> drawFnBodyView m@(SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc "Body" (pt 5 0)
+>	drawLeftMargin dc 10000
+>	drawTopMargin dc 10000
+>	--drawButtons dc $ fnBodyViewButtons g
+
+>	let selMtch = getSelectedLclMatch m "selected"
+>	case selMtch of
+>		Just 	(Match _ _ _ rhs _) 	-> 
+>			drawItem dc (modeOfOperation g) rhs
+>	    	_				-> 
+>			do
+>			let selMtch = getSelectedMatch m "selected"
+>			case selMtch of
+>				Just 	(Match _ _ _ rhs _) 	-> drawItem dc (modeOfOperation g) rhs
+>	    			_				-> 
+>					do
+>					drawText dc ("Please select a function from 'Globals' or 'Locals' pane\n" ++
+>			     			     "to see the details of the function or to add item in it.\n" ++
+>			     			     "To select a function, first click the 'Selection' button from the toolbar.\n" ++
+>						     "above the 'Global' pane.") 
+>						    (pt (10) (30)) [fontSize := 8]
+>					return ()
+
+> drawFnButtonsView :: SystemState -> (DC () -> IO ())
+> drawFnButtonsView (SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc (toolSymbol ++ " Fn / Cl") (pt 5 0)
+>	drawLeftMargin dc 5000
+>	drawTopMargin dc 10000
+>	drawButtons dc $ fnClButtons g
+
+> drawPatButtonsView :: SystemState -> (DC () -> IO ())
+> drawPatButtonsView (SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc (toolSymbol ++ " Pattern") (pt 5 0)
+>	drawLeftMargin dc 5000
+>	drawButtons dc $ patButtons g
+
+> toolSymbol = "[" ++ [(chr 9874)] ++ "]"
+
+> drawIExpButtonsView :: SystemState -> (DC () -> IO ())
+> drawIExpButtonsView (SystemState f t g ty h) dc = 
+>	do
+>	drawHeaders dc (toolSymbol ++ " Body") (pt 5 0)
+>	drawLeftMargin dc 5000
+>	drawButtons dc $ expButtons g
+
+> drawHeaders :: DC () -> String -> Point -> IO ()
+> drawHeaders dc s p@(Point x y) =
+>	do
+>	drawRect dc (rect (pt x (y+7)) (sz 500 16)) [color := black, brush := brushSolid blue]
+>	drawText dc (s) (pt x (y+6)) [fontSize := 10, color := white]
+
+> drawLeftMargin :: DC () -> Int -> IO ()
+> drawLeftMargin dc h =
+>	do
+>	line dc (pt 0 0) (pt 0 h) [color := (colorRGB 240 128 128), penWidth := 2]
+
+> drawTopMargin :: DC () -> Int -> IO ()
+> drawTopMargin dc w =
+>	do
+>	line dc (pt 0 0) (pt w 0) [color := (colorRGB 240 128 128), penWidth := 2]
+
+
+> drawButtons :: DC () -> [VirtualButton] -> IO ()
+> drawButtons dc btns = 
+>	do
+>	mapM (drawButton dc) btns
+>	let Point x y = btnPos $ last btns
+>	let Size w h = btnSz $ last btns
+>	--line dc (pt 5 (y + h + 7)) (pt 520 (y + h + 7)) [color := grey, penWidth := 2]--colorRGB 204 51 153, penWidth := 3]
+>	return ()
+
+> drawButton :: DC () -> VirtualButton -> IO ()
+> drawButton dc b 
+>	| (mseInsideBtn b) =
+>		do
+>		let Point x y = btnPos b
+>		checkSel
+>		drawRect dc (plusRect 2 $ rect (btnPos b) (btnSz b)) [color := black, brush := brushSolid black]--colorRGB 0 104 139
+>		drawRect dc (rect (btnPos b) (btnSz b)) [color := black, brush := brushSolid grey]
+>		drawText dc (btnText b) (btnPos b) []
+>		drawText dc (toolTip b) (pt (x-10) (y + 18)) [fontSize := 7, color := blue, penWidth := 2]
+>	| otherwise =
+>		do
+>		drawRect dc (plusRect 2 $ rect (btnPos b) (btnSz b)) [color := black]
+>		drawRect dc (rect (btnPos b) (btnSz b)) [color := black, brush := brushSolid (colorRGB 0 154 205)]
+>		drawText dc (btnText b) (btnPos b) []
+>		checkSel
+>	where
+>	checkSel 
+>		| (btnSel b) =
+>		do
+>		drawRect dc (plusRect 2 $ rect (btnPos b) (btnSz b)) [color := black, brush := brushSolid black]--colorRGB 0 104 139
+>		drawRect dc (rect (btnPos b) (btnSz b)) [color := black, brush := brushSolid grey]
+>		drawText dc (btnText b) (btnPos b) []
+>		| otherwise =
+>		return ()
+
+
+
+> class DrawShapeTree a where
+>	drawItem :: DC () -> ModeOfOperation -> a -> IO ()
+>	drawItemMB :: DC () -> ModeOfOperation -> Maybe a -> IO ()
+>	drawListItems :: DC () -> ModeOfOperation -> [a] -> IO ()
+
+>	drawItem dc dMode shp = return ()
+>	drawItemMB dc dMode Nothing = return ()
+>	drawItemMB dc dMode (Just shp) = drawItem dc dMode shp
+>	drawListItems dc dMode lstShp = sequence_ (map (drawItem dc dMode) lstShp)
+
+> instance DrawShapeTree (Decl (SrcSpanInfo, ItemState)) where
+>	drawItem dc dMode fn@(PatBind _ (PVar _ (Ident _ n))  _ _ _) =
+>		do
+>		drawText dc (show n) (pt 10 80) []
+>	drawItem dc dMode fn@(FunBind (s,vi) lstMatch) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawErroriosNode fn vi dc
+>		drawText dc (synonym vi) (pt (x+5) y) []
+>		drawListItems dc dMode lstMatch
+>		drawAddFuncMode dc dMode fn
+>	drawItem dc dMode otherDecl =
+>		return ()
+
+> drawErroriosNode node vi dc =
+>	do
+>	let isErr = isThereAnError node
+>	drawStripeInCaseErr isErr vi dc
+
+> drawStripeInCaseErr True vi dc	=
+>	do
+>	let Size  w h = itemSize vi
+>	let Point x y = itemPosition vi
+>	{---drawRect dc (rect (itemPosition vi) (sz w 5)) [color := black, brush := brushTransparent]
+>	--drawRect dc (rect (pt (x+5) y) (sz w 10)) [color := black, brush := brushTransparent]
+>	--drawRect dc (rect (pt (x+5) y) (sz (w-10) 12)) [color := black, brush := brushTransparent]
+>	line dc (pt (x+2) (y + 9)) (pt (x+w-4) (y + 9)) [color := black]
+>	line dc (pt (x+2) (y + 11)) (pt (x+w-4) (y + 11)) [color := black]
+>	--drawRect dc (rect (itemPosition vi) (sz w 15)) [color := black, brush := brushTransparent]-}
+>	drawText dc ("X") (pt (x+w-10) y) [fontSize:=20]
+
+> drawStripeInCaseErr False vi dc	=
+>	return ()
+
+> instance DrawShapeTree (Match (SrcSpanInfo, ItemState)) where
+> 	drawItem dc dMode mtch@(Match (s, vi) _ _ _ _) =
+>		do
+>		let Point x y = itemPosition vi
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushSolid (colorRGB 166 128 100)]--(colorRGB 235 199 158)
+>		drawErroriosNode mtch vi dc
+>		drawText dc (synonym vi) (pt (x+5) y) []
+>		drawAddClauseMode dc dMode mtch
+>	drawItem dc dMode otherMatch =
+>		return ()
+
+> instance DrawShapeTree (Binds (SrcSpanInfo, ItemState)) where
+> 	drawItem dc dMode (BDecls (s, vi) lstDecl) =
+>		do
+>		drawItemSelection dc vi
+>		drawListItems dc dMode lstDecl
+>		return ()
+>	drawItem dc dMode otherBinds =
+>		return ()
+
+> instance DrawShapeTree (Pat (SrcSpanInfo, ItemState)) where
+> 	drawItem dc dMode pat@(PVar _ (Ident (s2, vi) idnt)) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		triHead dc vi 10 [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc (idnt) (pt (x+5) y) []
+>		drawAddPatMode dc dMode (snd $ ann pat) 
+>		return ()
+> 	drawItem dc dMode pat@(PWildCard (s, vi)) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		drawText dc ("-----") (pt (x+5) y) []
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+> 	drawItem dc dMode pat@(PList (s, vi) []) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		drawText dc ("Empty") (pt (x+5) y) []
+>		drawRect dc (rect (Point (x + 75) (y)) (Size 8 20)) [color := black]
+>		drawRect dc (rect (Point (x + 82) (y)) (Size 8 20)) [color := black]
+>		drawRect dc (rect (Point (x + 89) (y)) (Size 8 20)) [color := black]
+>		drawRect dc (rect (Point (x + 96) (y)) (Size 8 20)) [color := black]
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+> 	drawItem dc dMode pat@(PParen (s, vi) p) =
+>		do
+>		drawItemSelectionParen dc vi
+>		drawItem dc dMode p
+>		return ()
+> 	drawItem dc dMode pat@(PInfixApp (_, vi) p1@(PVar (_, vi1) _) (Special _ (Cons _)) p2@(PVar (_, vi2) _)) =
+>		do
+>		--drawItemSelection dc vi
+>		let Point x1 y1 = itemPosition vi1
+>		line dc (pt 0 (y1 - 5)) (pt 200 (y1 - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawShp p1
+>		drawShp p2
+>		drawRect dc (rect (Point (x1 + 75) (y1)) (Size 8 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		{-drawRect dc (rect (Point (x1 + 75) (y1 + 5)) (Size 30 5)) [color := black]
+>		drawRect dc (rect (Point (x1 + 75) (y1 + 10)) (Size 30 5)) [color := black]
+>		drawRect dc (rect (Point (x1 + 75) (y1 + 15)) (Size 30 5)) [color := black]-}
+>		drawRect dc (rect (Point (x1 + 82) (y1)) (Size 8 20)) [color := black]
+>		drawRect dc (rect (Point (x1 + 89) (y1)) (Size 8 20)) [color := black]
+>		drawRect dc (rect (Point (x1 + 96) (y1)) (Size 8 20)) [color := black]
+>		let Point x2 y2 = itemPosition vi2
+>		drawRect dc (rect (Point (x2 + 75) (y2)) (Size 8 20)) [color := black]
+>		{-drawRect dc (rect (Point (x2 + 75) (y2 + 5)) (Size 30 5)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawRect dc (rect (Point (x2 + 75) (y2 + 10)) (Size 30 5)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawRect dc (rect (Point (x2 + 75) (y2 + 15)) (Size 30 5)) [color := black, brush := brushSolid (colorRGB 96 123 139)]-}
+>		drawRect dc (rect (Point (x2 + 82) (y2)) (Size 8 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawRect dc (rect (Point (x2 + 89) (y2)) (Size 8 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawRect dc (rect (Point (x2 + 96) (y2)) (Size 8 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+>		where
+>		drawShp (PVar _ (Ident (s2, vi) idnt)) =
+>			do
+>			drawItemSelection dc vi
+>			let Point x y = itemPosition vi
+>			drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>			drawText dc (idnt) (pt (x+5) y) []
+>			triHead dc vi 10 [color := black, brush := brushSolid (colorRGB 96 123 139)]
+> 	drawItem dc dMode pat@(PLit (_, vi) (Int _ i s1)) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc (s1) (pt (x+5) y) []
+>		drawRect dc (rect (Point (x + 75) (y)) (Size 30 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc ("123") (Point (x + 75) (y)) []
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+> 	drawItem dc dMode pat@(PLit (_, vi) (String _ i s1)) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc (s1) (pt (x+5) y) []
+>		drawRect dc (rect (Point (x + 75) (y)) (Size 30 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc ("abc") (Point (x + 75) (y)) []
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+> 	drawItem dc dMode pat@(PLit (_, vi) (Char _ i s1)) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc (s1) (pt (x+5) y) []
+>		drawRect dc (rect (Point (x + 75) (y)) (Size 30 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc ("'c'") (Point (x + 75) (y)) []
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+> 	drawItem dc dMode pat@(PApp (_,vi) (UnQual _ (Ident _ con)) []) =
+>		do
+>		drawItemSelection dc vi
+>		let Point x y = itemPosition vi
+>		line dc (pt 0 (y - 5)) (pt 200 (y - 5)) [color := (colorRGB 240 128 128), penWidth := 2]
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		drawText dc (con) (pt (x+5) y) []
+>		drawRect dc (rect (Point (x + 75) (y)) (Size 30 20)) [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>		drawText dc ("T/F") (Point (x + 75) (y)) []
+>		drawAddPatMode dc dMode (snd $ ann pat)
+>		return ()
+>	drawItem dc dMode otherPat =
+>		return ()
+
+> instance DrawShapeTree (Rhs (SrcSpanInfo, ItemState)) where
+>	drawItem dc dMode (UnGuardedRhs _ exp) =
+>		drawItem dc dMode exp
+>	drawItem dc dMode otherRhs =
+>		return ()
+>		
+
+> instance DrawShapeTree (Exp (SrcSpanInfo, ItemState)) where
+>	drawItem dc dMode (App _ eOne eTwo) =
+>		do
+>		drawItem dc dMode eOne
+>		drawItem dc dMode eTwo
+>	drawItem dc dMode (InfixApp _ eOne qop eTwo) =
+>		do
+>		drawItem dc dMode eOne
+>		drawItem dc dMode qop
+>		drawItem dc dMode eTwo
+>	drawItem dc dMode (If (_, vi) eOne eTwo eThree) =
+>		do
+>		drawItem dc dMode eOne
+>		drawItemIf dc dMode vi
+>		drawItem dc dMode eTwo
+>		drawItem dc dMode eThree
+>		drawInputOutputSim dc dMode vi 
+>	drawItem dc dMode (Paren _ eOne) =
+>		do
+>		drawItem dc dMode eOne
+>	drawItem dc dMode (Var (_, vi) (UnQual _ (Ident _ s))) =
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushTransparent]
+>		let Point x y = itemPosition vi
+>		drawText dc (s) (pt (x+5) (y+4)) [fontSize := 8]
+>		--drawText dc (show $ nodeType vi) (itemPosition vi) [fontSize := 8]
+>		drawJoinsAndBox dc vi
+> 		drawArgBoxes dc dMode vi
+>		drawUndefinedFunc dc vi
+>		--drawUnificationError dc vi
+>		drawItemToolTip dc dMode vi
+>		drawInputOutputSim dc dMode vi 
+>	drawItem dc dMode (Var (_, vi) (UnQual _ (Symbol _ s))) =
+>		do
+>		drawItemSelection dc vi
+>		drawItemOpFn dc dMode vi
+>		let Point x y = itemPosition vi
+>		drawText dc (s) (pt (x+5) (y+4)) [fontSize := 8]
+>		drawJoinsAndBox dc vi
+> 		drawArgBoxes dc dMode vi
+>		drawUndefinedFunc dc vi
+>		drawItemToolTip dc dMode vi
+>		drawInputOutputSim dc dMode vi 
+
+
+
+>	drawItem dc dMode (Con (_, vi) (Special _ (Cons _))) =
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect 	(itemPosition vi) 
+>					(itemSize vi)) [color := black, penWidth := 2]
+>		let Point x y = itemPosition vi
+>		drawText dc (":") (pt (x+5) (y+4)) [fontSize := 8]
+>		drawJoinsAndBox dc vi
+> 		drawArgBoxes dc dMode vi
+>		drawUndefinedFunc dc vi
+>		drawItemToolTip dc dMode vi
+>		drawInputOutputSim dc dMode vi 
+>	{-drawItem dc dMode (Con (_, vi) (Special _ (ListCon _))) =
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, penWidth := 2]
+>		let Point x y = itemPosition vi
+>		drawText dc ("[]") (pt (x+5) y) [fontSize := 8]
+>		drawItemToolTip dc dMode vi
+>		drawOutputSim dc dMode vi -}
+>	drawItem dc dMode (List (_, vi) []) =
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, penWidth := 2]
+>		let Point x y = itemPosition vi
+>		drawText dc ("[]") (pt (x+5) (y+4)) [fontSize := 8]
+>		drawItemToolTip dc dMode vi
+>		drawOutputSim dc dMode vi 
+>	drawItem dc dMode (Lit _ (String _ _ literal)) 
+>		| (literal == emptyBodyLitStr) =
+>		do
+>		drawText dc ("The body of this function has not been defined yet.\n" ++
+>			     "Please select an item type from the right hand `Body` toolbar\n" ++
+>			     "and click anywhere in the function body to add.") (pt (10) (30)) [fontSize := 8]
+>	drawItem dc dMode (Lit (_, vi) (String _ _ literal)) = --two separate for int, string
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid grey]
+>		let Point x y = itemPosition vi
+>		drawText dc literal (pt (x+5) (y+4)) [fontSize := 8]
+>		drawRect dc (rect (Point (x + 40) (y)) (Size 20 20)) [color := black, brush := brushSolid grey]
+>		drawText dc ("abc") (Point (x + 40) (y+4)) [fontSize := 8]
+>		drawOutputSim dc dMode vi 
+>	drawItem dc dMode (Lit (_, vi) (Char _ _ literal)) = --two separate for int, string
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid grey]
+>		let Point x y = itemPosition vi
+>		drawText dc literal (pt (x+5) (y+4)) [fontSize := 8]
+>		drawRect dc (rect (Point (x + 40) (y)) (Size 20 20)) [color := black, brush := brushSolid grey]
+>		drawText dc ("'c'") (Point (x + 40) (y+4)) [fontSize := 8]
+>		drawOutputSim dc dMode vi 
+>	drawItem dc dMode (Lit (_, vi) (Int _ _ literal)) = --two separate for int, string
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid grey]
+>		let Point x y = itemPosition vi
+>		drawText dc literal (pt (x+5) (y+4)) [fontSize := 8]
+>		drawRect dc (rect (Point (x + 40) (y)) (Size 20 20)) [color := black, brush := brushSolid grey]
+>		drawText dc ("123") (Point (x + 40) (y+4)) [fontSize := 8]
+>		drawOutputSim dc dMode vi 
+>	drawItem dc dMode (Con (_, vi) (UnQual _ (Ident _ con))) = --two separate for int, string
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]--, brush := brushSolid grey]
+>		let Point x y = itemPosition vi
+>		drawText dc con (pt (x+5) (y+4)) [fontSize := 8]
+>		drawRect dc (rect (Point (x + 40) (y)) (Size 20 20)) [color := black, brush := brushSolid grey]
+>		drawText dc ("T/F") (Point (x + 40) (y+4)) [fontSize := 8]
+>		drawOutputSim dc dMode vi 
+>	drawItem dc dMode otherExp =
+>		return ()
+
+> --Temp, could be local
+> drawUndefinedFunc dc vi 
+>	| ((fst $ nodeType vi) == UnDefined) = 
+>		do
+>		let	Point x y = itemPosition vi
+>		let	Size  w h = itemSize vi
+>		drawRect dc (rect (Point (x + w - 12) (y - 12)) (Size 12 12)) [color := black, brush := brushSolid grey]
+>		drawText dc (" !") (pt (x + w - 10) (y - 12)) [fontSize := 8]	
+>		--triArrow dc (Point (x + w - 10) y) [color := black, brush := brushSolid grey]
+>	| ((fst $ nodeType vi) == Parameter) = 
+>		do
+>		let	Point x y = itemPosition vi
+>		let	Size  w h = itemSize vi
+>		--drawRect dc (rect (Point (x + w - 12) (y - 12)) (Size 12 12)) [color := black, brush := brushSolid grey]
+>		--drawText dc ("P") (pt (x + w - 10) (y - 12)) [fontSize := 8]	
+>		triHeadLeft dc vi 10 [color := black, brush := brushSolid (colorRGB 96 123 139)]
+>	| ((fst $ nodeType vi) == Recursive) = 
+>		do
+>		let	Point x y = itemPosition vi
+>		let	Size  w h = itemSize vi
+>		drawRect dc (rect (Point (x + w - 16) (y - 12)) (Size 12 12)) [color := black, brush := brushSolid grey]
+>		--drawText dc ("R") (pt (x + w - 10) (y - 12)) [fontSize := 8]
+>		triArrow dc (Point (x + w - 16) y) [color := black, brush := brushSolid black]	
+>	| otherwise			     = return ()
+
+> drawUnificationError dc vi -- not used
+>	| ((take 18 $ typeErr vi) == "Cannot unify types") = 
+>		do
+>		let	Point x y = itemPosition vi
+>		let	Size  w h = itemSize vi
+>		drawRect dc (rect (Point (x + w + 5) (y - 8)) (Size 39 15)) [color := black]
+>		drawRect dc (rect (Point (x + w + 7) (y - 6)) (Size 10 5)) [color := black]
+>		drawRect dc (rect (Point (x + w + 7) (y)) (Size 10 5)) [color := black]
+>		drawText dc ("x") (pt (x + w + 27) (y - 10)) [fontSize := 6, color := green]	
+>		--drawText dc ("v") (pt (x + w + 7) (y - 3)) [fontSize := 8, color := green]	
+>		line dc (pt (x + w + 17) (y - 4)) (pt (x + w + 40) (y - 4)) [color := green]
+>		line dc (pt (x + w + 40) (y - 4)) (pt (x + w + 40) (y + 6)) [color := green]
+>		line dc (pt (x + w + 17) (y+2)) (pt (x + w + 30) (y+2)) [color := green]
+>		line dc (pt (x + w + 30) (y+2)) (pt (x + w + 30) (y + 6)) [color := green]
+>		--triArrow dc (Point (x + w - 10) y) [color := black, brush := brushSolid grey]
+>	| ((take 16 $ typeErr vi) == "Occurs check for") = 
+>		do
+>		let	Point x y = itemPosition vi
+>		let	Size  w h = itemSize vi
+>		drawRect dc (rect (Point (x + w + 5) (y - 8)) (Size 39 15)) [color := black]
+>		drawRect dc (rect (Point (x + w + 7) (y - 6)) (Size 10 5)) [color := black]
+>		drawRect dc (rect (Point (x + w + 7) (y)) (Size 10 5)) [color := black]
+>		drawText dc ("x") (pt (x + w + 27) (y - 10)) [fontSize := 6, color := green]	
+>		--drawText dc ("v") (pt (x + w + 7) (y - 3)) [fontSize := 8, color := green]	
+>		line dc (pt (x + w + 17) (y - 4)) (pt (x + w + 40) (y - 4)) [color := green]
+>		line dc (pt (x + w + 40) (y - 4)) (pt (x + w + 40) (y + 6)) [color := green]
+>		line dc (pt (x + w + 17) (y+2)) (pt (x + w + 30) (y+2)) [color := green]
+>		line dc (pt (x + w + 30) (y+2)) (pt (x + w + 30) (y + 6)) [color := green]
+>	| otherwise			     = return ()
+
+> drawArgBoxes dc dMode vi =
+>	do
+>	sequence_ (map (drawArgsBoxFilled dc vi) [1..(length $ joinToChildNodes vi)])
+>	sequence_ (map (drawArgsBox dc dMode) (nodeTypeArgs vi))
+> drawArgBoxesIfThenElse dc dMode vi =
+>	do
+>	sequence_ (map (drawArgsBoxNotFilled dc vi) [1..3])
+> drawArgsBox dc dMode vi = 
+>	do
+>	drawRect dc (rect  (itemPosition vi) (itemSize vi)) [color := black]
+>	drawItemToolTipArgs dc dMode vi
+> drawArgsBoxFilled dc vi no = 
+>		do 
+>		drawRect dc (rect  (pt (10 * (no-1) + pointX (itemPosition vi)) (pointY (itemPosition vi) - 10)) (sz 10 10)) 
+>			[color := black, brush := brushSolid magenta]
+> drawArgsBoxNotFilled dc vi no = 
+>		do 
+>		drawRect dc (rect  (pt (10 * (no-1) + pointX (itemPosition vi)) (pointY (itemPosition vi) - 10)) (sz 10 10)) 
+>			[color := black]
+
+
+
+> --Temp, could be local
+> {-drawArgsBox dc viUQ no = 
+>		do 
+>		drawRect dc (rect  (pt (10 * (no-1) + pointX (itemPosition viUQ)) (pointY (itemPosition viUQ))) (sz 10 10)) [color := black]
+> drawArgsBoxFilled dc viUQ no = 
+>		do 
+>		drawRect dc (rect  (pt (10 * (no-1) + pointX (itemPosition viUQ)) (pointY (itemPosition viUQ))) (sz 10 10)) [color := red]-}
+
+> drawItemSelection dc vi
+>	| (selected vi) = 
+>		do
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		drawRect dc (rect (Point (x-5) (y-5)) (Size (w+10) (h+10))) [color := blue, penWidth := 2]
+>	| otherwise	= return ()
+> drawItemSelectionParen dc vi
+>	| (selected vi) = 
+>		do
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		drawRect dc (rect (Point (x-7) (y-7)) (Size (w+14) (h+14))) [color := (colorRGB 0 154 205), penWidth := 2]
+>	| otherwise	= return ()
+
+> drawItemToolTip dc dMode vi
+>	| (mseInside vi && (dMode == ModeSelection)) = 
+>		do
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		drawText dc (toolTipText vi) (Point (x+65) (y)) [fontSize := 8, color := blue, penWidth := 2]
+>	| otherwise	= return ()
+
+> drawItemToolTipArgs dc dMode vi
+>	| (mseInside vi && (dMode == ModeSelection)) = 
+>		do
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		drawText dc (getShapeToolTipArgs $ toolTipText vi) (Point (x+65) (y)) [fontSize := 8, color := blue, penWidth := 2]
+>	| otherwise	= return ()
+
+> getShapeToolTipArgs txt 
+>	| (head txt == '[')	= "[" ++ (tail $ tail $ tail $ txt) ++ "] (A list of items of type" ++ (tail $ tail $ txt) ++ ")"
+>	| (elem '>' txt) 	= txt ++ " (A function)"
+>	| otherwise		= txt ++ " (An item of type " ++ (txt) ++ ")"
+
+> drawAddFuncMode dc dMode fn@(FunBind (s, vi) lstMtch)
+>	| (mseInside vi && (dMode == ModeNewFn)) = 
+>		do 
+>		let r = 1 + (length lstMtch) `div` 4
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		let y1 = (y + h + r * 38)
+>		let y2 = (y + h + r * 42)
+>		line dc (pt 0 y1) (pt 200 y1) [color := black, penWidth := 2]
+>		line dc (pt 0 y2) (pt 200 y2) [color := black, penWidth := 2]
+>	| otherwise	= return ()
+
+> drawAddClauseMode dc dMode mtch@(Match (s, vi) _ _ _ _)
+>	| (mseInside vi && (dMode == ModeNewCl)) = 
+>		do 
+>		putStrLn "test"
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		let x1 = (x + w + 5)
+>		let x2 = (x + w + 9)
+>		line dc (pt x1 y) (pt x1 (y+h)) [color := black, penWidth := 2]
+>		line dc (pt x2 y) (pt x2 (y+h)) [color := black, penWidth := 2]
+>	| otherwise	= return ()
+
+> drawAddPatMode dc dMode vi
+>	| (mseInside vi && condi) = 
+>		do 
+>		let Point x y = itemPosition vi
+>		let Size w h = itemSize vi
+>		let y1 = (y + h + 3)
+>		let y2 = (y + h + 7)
+>		line dc (pt 0 y1) (pt 200 y1) [color := black, penWidth := 2]
+>		line dc (pt 0 y2) (pt 200 y2) [color := black, penWidth := 2]
+>	| otherwise	= return ()
+>	where
+>	condi = (dMode == ModePatVar) || (dMode == ModePatWild) || (dMode == ModePatEmptyLst) || (dMode == ModePatListCons) ||
+>		(dMode == ModePatStr) || (dMode == ModePatInt) || (dMode == ModePatChar) || (dMode == ModePatBool)
+
+> drawItemIf dc dMode vi =
+>	do
+>	drawItemSelection dc vi
+>	drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>	let Point x y = itemPosition vi
+>	let Size w h = itemSize vi
+>	--drawRect dc (rect (pt x (y-10)) (sz w 10)) [color := black, brush := brushSolid grey]
+> 	drawArgBoxesIfThenElse dc dMode vi
+>	--drawText dc ("IF-THEN") (pt (x+5) y) []
+>	--rotatedText dc ("IF") (pt x (y+h-5)) 90 [fontSize := 8, penWidth := 2]
+>	--line dc (pt (x+10) (y)) (pt (x+10) (y+h)) []
+>	drawRect dc (rect  (pt x (y+2)) (sz 10 14)) [color := black]
+>	drawText dc ("C") (pt (x+1) (y+h-18)) [fontSize := 8, penWidth := 2]
+>	--rotatedText dc ("TH") (pt (x+10) (y+h-5)) 90 [fontSize := 8, penWidth := 2]
+>	--line dc (pt (x+20) (y)) (pt (x+20) (y+h)) []
+>	drawRect dc (rect  (pt (x+10) (y+h-16)) (sz 10 14)) [color := black]
+>	drawText dc ("T") (pt (x+11) (y+h-15)) [fontSize := 8, penWidth := 2]
+>	--rotatedText dc ("EL") (pt (x+20) (y+h-5)) 90 [fontSize := 8, penWidth := 2]
+>	--line dc (pt (x+30) (y)) (pt (x+30) (y+h)) []
+>	drawRect dc (rect  (pt (x+20) (y+h-16)) (sz 10 14)) [color := black]
+>	drawText dc ("F") (pt (x+21) (y+h-15)) [fontSize := 8, penWidth := 2]
+>	drawJoinsAndBox dc vi
+
+
+> drawItemOp dc dMode vi =
+>	do
+>	drawItemSelection dc vi
+>	let Point x y = itemPosition vi
+>	let Size w h = itemSize vi
+>	let x1 = x + w - (h `div` 2)
+>	let y1 = y + (h `div` 2)
+>	drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>	circle dc (Point x1 y1)  (h `div` 3) [color := black]
+
+> drawItemFnOp dc dMode vi =
+>	do
+>	drawItemSelection dc vi
+>	let Point x y = itemPosition vi
+>	let Size w h = itemSize vi
+>	let x1 = x + w - (h `div` 2)
+>	let y1 = y + (h `div` 2)
+>	drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black, brush := brushSolid grey]
+>	circle dc (Point x1 y1)  (h `div` 3) [color := black]
+
+> drawItemOpFn dc dMode vi =
+>	do
+>	drawItemSelection dc vi
+>	let Point x y = itemPosition vi
+>	let Size w h = itemSize vi
+>	let x1 = x + w - (h `div` 2)
+>	let y1 = y + (h `div` 2)
+>	drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>	--circle dc (Point x1 y1)  (h `div` 3) [color := black, brush := brushSolid grey]
+>	drawRect dc (rect (Point (x + 40) (y)) (Size 20 20)) [color := black, brush := brushSolid grey]
+>	drawText dc ("+/-") (Point (x + 40) (y+4)) [fontSize := 8]
+
+> instance DrawShapeTree (QOp (SrcSpanInfo, ItemState)) where
+>	drawItem dc dMode (QVarOp (_, vi) (UnQual _ (Symbol _ s))) =
+>		do
+>		drawItemSelection dc vi
+>		--drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		drawItemOp dc dMode vi
+>		let Point x y = itemPosition vi
+>		drawText dc (s) (pt (x+5) y) []
+>		drawJoinsAndBox dc vi
+>	drawItem dc dMode (QVarOp (_, vi) (UnQual _ (Ident _ s))) =
+>		do
+>		drawItemSelection dc vi
+>		--drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		drawItemFnOp dc dMode vi
+>		let Point x y = itemPosition vi
+>		drawText dc (s) (pt (x+5) y) [color := black]
+>		drawJoinsAndBox dc vi
+>	drawItem dc dMode (QConOp (_, vi) (Special _ (Cons _))) =
+>		do
+>		drawItemSelection dc vi
+>		drawRect dc (rect (itemPosition vi) (itemSize vi)) [color := black]
+>		let Point x y = itemPosition vi
+>		drawText dc (":") (pt (x+5) y) []
+>		drawJoinsAndBox dc vi
+>	drawItem dc dMode otherQOp =
+>		return ()
+
+> drawJoinsAndBox :: DC () -> ItemState -> IO ()
+> drawJoinsAndBox dc vi =
+>	do
+>	drawNodeJoins dc (joinToChildNodes vi)
+>	drawRect dc (rect (fst $ groupBox vi) (snd $ groupBox vi)) [color := colorRGB 138 43 226, brush := brushTransparent]
+
+> drawNodeJoins :: DC () -> JoinToChildNodes -> IO ()
+> drawNodeJoins dc lstJCN = sequence_ (map (drawNodeJoin dc) lstJCN)
+
+> drawNodeJoin dc lstLines = polyline dc lstLines [color := green]
+
+> drawInputSim dc dMode vi 
+>	| (mseInside vi && inputcondi dMode) = do
+>		let ptSt = itemPosition vi 
+>		let szShp = itemSize vi
+>		let Point x y = pt ((pointX ptSt) + ((sizeW szShp)`div`2)) (pointY ptSt)
+>		let p1 = pt x y
+>		let p2 = pt (x - 5) (y-5)
+>		let p3 = pt (x+5) (y-5)
+>		let p4 = pt x y
+>		let p5 = pt x (y- 20) 
+>		let p6 = pt (x-10) (y-20)
+>		let p7 = pt (x-10) (y-30)
+>		let p8 = pt (x+10) (y-30)
+>		let p9 = pt (x+10) (y-20)
+>		let p10 = pt x (y-20)
+>		let pPoly = [p1,p2,p3,p4,p5,p6,p7,p8,p9,p10]
+>	
+>		--drawRect dc (rect  ptSt (sz (sizeW $ szShp) 15)) [color := red]
+>		polyline dc pPoly [color := magenta]
+>	| otherwise	= return ()
+
+> drawOutputSim dc dMode vi
+>	| (outputSelected vi && outputcondi dMode) = do
+>		let ptSt = itemPosition vi 
+>		let szShp = itemSize vi
+>		let  Point x y = pt ((pointX ptSt) + ((sizeW szShp)`div`2)) (pointY ptSt + 20)
+>		let p1 = pt x y
+>		let p2 = pt x (y+20)
+>		let p3 = pt (x-5) (y+15)
+>		let p4 = pt (x+5) (y+15)
+>		let p5 = pt x (y+20)
+>		let p6 = pt (x-10) (y+20)
+>		let p7 = pt (x-10) (y+30)
+>		let p8 = pt (x+10) (y+30)
+>		let p9 = pt (x+10) (y+20)
+>		let p10 = pt x (y+20)
+>		let pPoly = [p1,p2,p3,p4,p5,p6,p7,p8,p9,p10]
+>	
+>		--drawRect dc (rect  ptSt (sz (sizeW $ szShp) 15)) [color := red]
+>		polyline dc pPoly [color := magenta]
+>	| otherwise	= return ()
+
+> drawInputOutputSim dc dMode vi 
+>	| (outputSelected vi)	 = drawOutputSim dc dMode vi
+>	| otherwise		 = drawInputSim dc dMode vi
+
+> inputcondi dMode = (dMode == ModeExpApp) || (dMode == ModeExpOp) || (dMode == ModeListCons) || (dMode == ModeEmptyList) 
+>		     || (dMode == ModeCnstStr) || (dMode == ModeCnstChar) 
+>		     || (dMode == ModeCnstInt) || (dMode == ModeCnstBool) || (dMode == ModeIfStmt) 
+
+> outputcondi dMode = (dMode == ModeExpApp) || (dMode == ModeExpOp) || (dMode == ModeListCons) || (dMode == ModeIfStmt) 
+
+
+
+
+

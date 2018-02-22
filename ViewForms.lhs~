@@ -1,0 +1,12 @@
+> module ViewForms where
+>
+> -- Model -- Module Path, Save Status
+> --Original Text, Cursor Pos
+> --Drawing Mode, Shapes, Joining start point
+> --type ModelType = ((String, Int), (DrawMode, [Shape], Point, Point))
+> type OriginalText = String
+> type InsertionPoint = Int
+> type TextualForm = (OriginalText, InsertionPoint)
+
+> type GraphicalForm = Int
+

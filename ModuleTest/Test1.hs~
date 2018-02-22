@@ -1,0 +1,5 @@
+fn1 c d = fn d c
+
+fn::Int->Int->Int
+
+fn a b = a
