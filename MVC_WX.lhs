@@ -1,3 +1,14 @@
+-- ---------------------------------------------------------------------------
+--
+-- Module : MVC_WX.lhs
+-- Author : Abu Alam
+--
+-- Maintainer : Abu Alam, s0408730@connect.glos.ac.uk
+--
+-- Purpose : Utility functions for creating wxHaskell events and attributes
+-- and adjusting them for the reactive.banana libraray.
+-- ---------------------------------------------------------------------------
+
 > module MVC_WX where
 
 > import MVC
